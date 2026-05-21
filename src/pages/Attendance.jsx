@@ -22,6 +22,26 @@ function deg2rad(deg) {
   return deg * (Math.PI/180);
 }
 
+function formatJamKerja(val, defaultVal) {
+  if (!val) return defaultVal;
+  const s = String(val).trim();
+  if (s.includes('1899-12-30')) {
+    try {
+      const d = new Date(s);
+      // Koreksi offset historis LMT Indonesia (+07:07:12 -> +07:00:00) yang sering terjadi di Google Sheets
+      d.setMinutes(d.getMinutes() + 7);
+      d.setSeconds(d.getSeconds() + 12);
+      // Memastikan menitnya dibulatkan ke kelipatan 5 untuk menghindari jam aneh seperti 16:59
+      const m = d.getMinutes();
+      d.setMinutes(Math.round(m / 5) * 5);
+      return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    } catch(e) {
+      return s;
+    }
+  }
+  return s;
+}
+
 export default function Attendance() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -265,7 +285,7 @@ export default function Attendance() {
                     Anda berada dalam radius kantor ({distance}m).
                   </p>
                   <div style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--primary)', background: 'rgba(59, 130, 246, 0.1)', padding: '0.75rem', borderRadius: '0.5rem', display: 'inline-block' }}>
-                    Jadwal hari ini ({currentTime.getDay() === 6 ? `${user.jamMulaiSabtu || '10:00'} - ${user.jamSelesaiSabtu || '17:00'}` : `${user.jamMulai || '17:00'} - ${user.jamSelesai || '20:30'}`})
+                    Jadwal hari ini ({currentTime.getDay() === 6 ? `${formatJamKerja(user.jamMulaiSabtu, '10:00')} - ${formatJamKerja(user.jamSelesaiSabtu, '17:00')}` : `${formatJamKerja(user.jamMulai, '17:00')} - ${formatJamKerja(user.jamSelesai, '20:30')}`})
                   </div>
                   <div className="mt-4">
                     <button className="btn btn-ghost mx-auto btn-sm" style={{ color: 'var(--text-muted)' }} onClick={getLocation}><RefreshCw size={14} /> Muat Ulang Lokasi</button>
