@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
-import { Camera, MapPin, LogOut, CheckCircle, RefreshCw, Clock, History, Calendar, FileText } from 'lucide-react';
+import { Camera, MapPin, LogOut, CheckCircle, RefreshCw, Clock, History, Calendar, X, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { callApi } from '../api';
 
@@ -35,16 +35,18 @@ export default function Attendance() {
   const [location, setLocation] = useState(null);
   const [distance, setDistance] = useState(null);
   const [locError, setLocError] = useState('');
-  const [photo, setPhoto] = useState(null);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // History states
-  const [activeTab, setActiveTab] = useState('absen');
+  const [activeTab, setActiveTab] = useState('riwayat');
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Camera state
+  const [takingPhotoFor, setTakingPhotoFor] = useState(null); // 'Masuk' | 'Keluar' | null
   
   const now = new Date();
   const [filterMonth, setFilterMonth] = useState(now.getMonth());
@@ -82,7 +84,7 @@ export default function Attendance() {
     initSettings();
   }, []);
 
-  // 2. Once settings are loaded, get user location
+  // 2. Get user location when activeTab changes to 'absen' or clinicConfig loads
   const getLocation = useCallback(() => {
     if (!clinicConfig) return;
     
@@ -112,62 +114,10 @@ export default function Attendance() {
   }, [clinicConfig]);
 
   useEffect(() => {
-    if (clinicConfig) {
+    if (activeTab === 'absen' && clinicConfig) {
       getLocation();
     }
-  }, [clinicConfig, getLocation]);
-
-  const capture = useCallback(() => {
-    if (webcamRef.current) {
-      const imageSrc = webcamRef.current.getScreenshot();
-      setPhoto(imageSrc);
-    }
-  }, [webcamRef]);
-
-  const handleAttend = async (tipe) => {
-    setErrorMsg('');
-    setSuccessMsg('');
-    
-    if (!location) {
-      setErrorMsg('Lokasi belum ditemukan. Tunggu sebentar atau refresh halaman.');
-      return;
-    }
-    
-    if (distance > clinicConfig.max_dist) {
-      setErrorMsg(`Anda berada di luar jangkauan (${distance}m). Maksimal ${clinicConfig.max_dist}m dari klinik.`);
-      return;
-    }
-
-    if (!photo) {
-      setErrorMsg('Silakan ambil foto selfie terlebih dahulu.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await callApi({
-        action: 'attend',
-        nama: user.nama,
-        nowa: user.nowa,
-        tipe: tipe,
-        jarak: distance,
-        koordinat: `${location.lat},${location.lng}`,
-        photo: photo
-      });
-      
-      setSuccessMsg(`Berhasil melakukan absen ${tipe}!`);
-      setPhoto(null); 
-    } catch (err) {
-      setErrorMsg(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+  }, [activeTab, clinicConfig, getLocation]);
 
   const fetchHistory = useCallback(async () => {
     setLoadingHistory(true);
@@ -184,15 +134,64 @@ export default function Attendance() {
   }, [user.nama]);
 
   useEffect(() => {
-    if (activeTab === 'riwayat') {
-      fetchHistory();
+    if (activeTab === 'riwayat' || activeTab === 'absen') {
+      fetchHistory(); // Selalu fetch history untuk update state disable tombol
     }
   }, [activeTab, fetchHistory]);
+
+  const captureAndSubmit = async () => {
+    if (!webcamRef.current) return;
+    const imageSrc = webcamRef.current.getScreenshot();
+    
+    setErrorMsg('');
+    setSuccessMsg('');
+    setLoading(true);
+    
+    try {
+      await callApi({
+        action: 'attend',
+        nama: user.nama,
+        nowa: user.nowa,
+        tipe: takingPhotoFor,
+        jarak: distance,
+        koordinat: `${location.lat},${location.lng}`,
+        photo: imageSrc
+      });
+      
+      setSuccessMsg(`Berhasil melakukan absen ${takingPhotoFor}!`);
+      setTakingPhotoFor(null);
+      setActiveTab('riwayat');
+      fetchHistory();
+    } catch (err) {
+      setErrorMsg(err.message);
+      // Let the user retry or close
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const filteredHistory = history.filter(item => {
     const d = new Date(item.timestamp);
     return d.getMonth() === filterMonth && d.getFullYear() === filterYear;
   });
+
+  // Cek apakah sudah absen hari ini
+  const todayStr = new Date().toLocaleDateString('id-ID');
+  const hasAbsenMasukToday = history.some(item => {
+    const d = new Date(item.timestamp).toLocaleDateString('id-ID');
+    return d === todayStr && item.tipe === 'Masuk';
+  });
+  const hasAbsenKeluarToday = history.some(item => {
+    const d = new Date(item.timestamp).toLocaleDateString('id-ID');
+    return d === todayStr && item.tipe === 'Keluar';
+  });
+
+  const isLocationValid = location && distance !== null && distance <= clinicConfig?.max_dist;
 
   if (fetchingSettings) {
     return (
@@ -205,7 +204,7 @@ export default function Attendance() {
 
   return (
     <>
-      <div className="page-header">
+      <div className="page-header" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
         <div className="page-header-left">
           <div>
             <div className="page-title">Absensi</div>
@@ -213,10 +212,6 @@ export default function Attendance() {
           </div>
         </div>
         <div className="page-header-right">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-muted)', fontSize: '0.82rem', marginRight: '0.5rem' }}>
-            <Clock size={14} />
-            {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-          </div>
           {user?.role === 'admin' && (
             <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin')}>
               Dashboard
@@ -228,124 +223,107 @@ export default function Attendance() {
         </div>
       </div>
 
-      <div className="tab-nav" style={{ marginTop: '0', borderTop: 'none', background: 'var(--surface)', padding: '0.5rem 1rem' }}>
-        <button
-          className={`tab-btn ${activeTab === 'absen' ? 'active' : ''}`}
-          onClick={() => setActiveTab('absen')}
-        >
-          <Camera size={16} />
-          <span>Absen</span>
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'riwayat' ? 'active' : ''}`}
-          onClick={() => setActiveTab('riwayat')}
-        >
-          <History size={16} />
-          <span>Riwayat</span>
-        </button>
-      </div>
+      <div className="main-content" style={{ paddingBottom: '90px' }}>
+        {errorMsg && !takingPhotoFor && <div className="alert alert-error mb-4">{errorMsg}</div>}
+        {successMsg && !takingPhotoFor && <div className="alert alert-success mb-4"><CheckCircle size={18} /> {successMsg}</div>}
 
-      <div className="main-content">
         {activeTab === 'absen' ? (
-          <>
-            <div className="card glass mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-2">
-                  <MapPin size={20} color={distance !== null && distance <= clinicConfig?.max_dist ? 'var(--success)' : 'var(--error)'} />
-                  <h3 style={{ margin: 0, fontSize: '1rem' }}>Status Lokasi</h3>
-                </div>
-                <button 
-                  className="edit-btn" 
-                  onClick={getLocation}
-                  title="Refresh Lokasi"
-                >
-                  <RefreshCw size={14} /> Refresh
-                </button>
+          <div>
+            {/* Jam Digital */}
+            <div className="text-center mb-6 mt-4">
+              <div style={{ fontSize: '3.5rem', fontWeight: '800', lineHeight: '1', color: 'var(--text-primary)' }}>
+                {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
-              
+              <div style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginTop: '0.5rem', fontWeight: '500' }}>
+                {currentTime.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
+              </div>
+            </div>
+
+            {/* Status Lokasi Card */}
+            <div className="card glass mb-6 text-center" style={{ padding: '2rem 1.5rem', borderRadius: '1.5rem', border: '1px solid rgba(255,255,255,0.1)' }}>
               {locError ? (
-                <div className="alert alert-error">{locError}</div>
-              ) : location && distance !== null ? (
-                <div style={{ background: 'var(--background)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
-                  <p className="mb-2">Jarak Anda dari klinik: <strong>{distance} meter</strong></p>
-                  {distance <= clinicConfig.max_dist ? (
-                    <span className="badge badge-success" style={{ fontSize: '0.85rem', padding: '0.3rem 0.75rem' }}>✓ Lokasi Valid</span>
-                  ) : (
-                    <span className="badge badge-error" style={{ fontSize: '0.85rem', padding: '0.3rem 0.75rem' }}>✗ Di Luar Jangkauan (Maks {clinicConfig.max_dist}m)</span>
-                  )}
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.75rem', lineHeight: '1.5' }}>
-                    <div>Titik Klinik: {clinicConfig.lat}, {clinicConfig.lng}</div>
-                    <div>Lokasi Anda: {location.lat}, {location.lng}</div>
+                <>
+                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                    <MapPin size={32} />
                   </div>
+                  <h3 style={{ color: 'var(--error)', marginBottom: '0.5rem' }}>Lokasi Tidak Valid</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>{locError}</p>
+                  <button className="btn btn-secondary mt-4 mx-auto" onClick={getLocation}><RefreshCw size={16} /> Muat Ulang Lokasi</button>
+                </>
+              ) : distance === null ? (
+                <div style={{ padding: '2rem 0' }}>
+                  <div className="spinner spinner-primary spinner-lg mx-auto mb-4"></div>
+                  <p style={{ color: 'var(--text-muted)', fontWeight: '500' }}>Mencari lokasi Anda...</p>
                 </div>
+              ) : isLocationValid ? (
+                <>
+                  <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'rgba(34, 197, 94, 0.15)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                    <CheckCircle size={36} />
+                  </div>
+                  <h3 style={{ color: 'var(--success)', fontSize: '1.3rem', marginBottom: '0.5rem' }}>Lokasi Valid</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1rem' }}>
+                    Anda berada dalam radius kantor ({distance}m).
+                  </p>
+                  <div style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--primary)', background: 'rgba(59, 130, 246, 0.1)', padding: '0.75rem', borderRadius: '0.5rem', display: 'inline-block' }}>
+                    Jadwal hari ini ({currentTime.getDay() === 6 ? `${user.jamMulaiSabtu || '10:00'} - ${user.jamSelesaiSabtu || '17:00'}` : `${user.jamMulai || '17:00'} - ${user.jamSelesai || '20:30'}`})
+                  </div>
+                  <div className="mt-4">
+                    <button className="btn btn-ghost mx-auto btn-sm" style={{ color: 'var(--text-muted)' }} onClick={getLocation}><RefreshCw size={14} /> Muat Ulang Lokasi</button>
+                  </div>
+                </>
               ) : (
-                <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
-                  <div className="spinner spinner-primary" style={{ width: '16px', height: '16px', borderWidth: '2px' }}></div>
-                  Mencari titik koordinat GPS...
-                </div>
+                <>
+                  <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--error)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                    <MapPin size={36} />
+                  </div>
+                  <h3 style={{ color: 'var(--error)', fontSize: '1.3rem', marginBottom: '0.5rem' }}>Di Luar Jangkauan</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1rem' }}>
+                    Anda berada {distance}m dari klinik. Maksimal jarak adalah {clinicConfig.max_dist}m.
+                  </p>
+                  <button className="btn btn-secondary mt-4 mx-auto btn-sm" onClick={getLocation}><RefreshCw size={14} /> Coba Lagi</button>
+                </>
               )}
             </div>
 
-            <div className="card glass mb-6">
-              <h3 className="mb-4 flex items-center gap-2" style={{ fontSize: '1rem' }}><Camera size={18} /> Bukti Selfie</h3>
-              <div style={{ 
-                position: 'relative', 
-                width: '100%', 
-                borderRadius: 'var(--radius-md)', 
-                overflow: 'hidden', 
-                backgroundColor: '#000', 
-                aspectRatio: '3/4',
-                maxHeight: '400px',
-                display: 'flex',
-                justifyContent: 'center',
-                boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.5)'
-              }}>
-                {!photo ? (
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    videoConstraints={{ facingMode: "user" }}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <img src={photo} alt="Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                )}
-              </div>
+            {/* Action Buttons */}
+            <div className="flex gap-4 mb-4">
+              <button 
+                className="btn flex-1 justify-center flex-col gap-2" 
+                style={{ 
+                  background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)', 
+                  color: 'white', padding: '1.5rem', borderRadius: '1rem', border: 'none',
+                  opacity: (!isLocationValid || hasAbsenMasukToday) ? 0.5 : 1,
+                  boxShadow: '0 10px 25px -5px rgba(16, 185, 129, 0.4)',
+                  cursor: (!isLocationValid || hasAbsenMasukToday) ? 'not-allowed' : 'pointer'
+                }}
+                onClick={() => setTakingPhotoFor('Masuk')}
+                disabled={!isLocationValid || hasAbsenMasukToday}
+              >
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                  <CheckCircle size={24} />
+                </div>
+                <span style={{ fontSize: '1.2rem', fontWeight: '700' }}>{hasAbsenMasukToday ? 'Sudah Masuk' : 'Masuk'}</span>
+              </button>
               
-              <div className="mt-4">
-                {!photo ? (
-                  <button className="btn btn-secondary w-full justify-center" onClick={capture}>
-                    <Camera size={18} /> Ambil Foto
-                  </button>
-                ) : (
-                  <button className="btn btn-secondary w-full justify-center" onClick={() => setPhoto(null)}>
-                    <RefreshCw size={18} /> Ulangi Foto
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {errorMsg && <div className="alert alert-error">{errorMsg}</div>}
-            {successMsg && <div className="alert alert-success"><CheckCircle size={18} /> {successMsg}</div>}
-
-            <div className="flex gap-4">
               <button 
-                className="btn btn-primary flex-1 justify-center" 
-                onClick={() => handleAttend('Masuk')}
-                disabled={loading || !photo || (distance !== null && distance > clinicConfig?.max_dist)}
+                className="btn flex-1 justify-center flex-col gap-2" 
+                style={{ 
+                  background: 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)', 
+                  color: 'white', padding: '1.5rem', borderRadius: '1rem', border: 'none',
+                  opacity: (!isLocationValid || hasAbsenKeluarToday) ? 0.5 : 1,
+                  boxShadow: '0 10px 25px -5px rgba(249, 115, 22, 0.4)',
+                  cursor: (!isLocationValid || hasAbsenKeluarToday) ? 'not-allowed' : 'pointer'
+                }}
+                onClick={() => setTakingPhotoFor('Keluar')}
+                disabled={!isLocationValid || hasAbsenKeluarToday}
               >
-                {loading ? <div className="spinner"></div> : 'Absen Masuk'}
-              </button>
-              <button 
-                className="btn btn-danger flex-1 justify-center" 
-                onClick={() => handleAttend('Keluar')}
-                disabled={loading || !photo || (distance !== null && distance > clinicConfig?.max_dist)}
-              >
-                {loading ? <div className="spinner"></div> : 'Absen Keluar'}
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                  <LogOut size={24} />
+                </div>
+                <span style={{ fontSize: '1.2rem', fontWeight: '700' }}>{hasAbsenKeluarToday ? 'Sudah Pulang' : 'Pulang'}</span>
               </button>
             </div>
-          </>
+          </div>
         ) : (
           <div className="card glass">
             <h3 className="mb-4 flex items-center gap-2"><History size={18} /> Riwayat Absensi Saya</h3>
@@ -411,6 +389,94 @@ export default function Attendance() {
           </div>
         )}
       </div>
+
+      {/* Bottom Navigation */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0,
+        background: 'var(--surface)', borderTop: '1px solid var(--border)',
+        display: 'flex', zIndex: 90, paddingBottom: 'env(safe-area-inset-bottom)',
+        boxShadow: '0 -4px 20px rgba(0,0,0,0.05)'
+      }}>
+        <button 
+          style={{ 
+            flex: 1, padding: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', 
+            color: activeTab === 'riwayat' ? 'var(--primary)' : 'var(--text-muted)', 
+            background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.2s'
+          }}
+          onClick={() => setActiveTab('riwayat')}
+        >
+          <History size={24} style={{ transform: activeTab === 'riwayat' ? 'scale(1.1)' : 'scale(1)' }} />
+          <span style={{ fontSize: '0.75rem', fontWeight: activeTab === 'riwayat' ? '700' : '500' }}>Riwayat</span>
+        </button>
+        <button 
+          style={{ 
+            flex: 1, padding: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', 
+            color: activeTab === 'absen' ? 'var(--primary)' : 'var(--text-muted)', 
+            background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.2s'
+          }}
+          onClick={() => setActiveTab('absen')}
+        >
+          <Camera size={24} style={{ transform: activeTab === 'absen' ? 'scale(1.1)' : 'scale(1)' }} />
+          <span style={{ fontSize: '0.75rem', fontWeight: activeTab === 'absen' ? '700' : '500' }}>Absen</span>
+        </button>
+      </div>
+
+      {/* Full Screen Camera View */}
+      {takingPhotoFor && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: '#000', zIndex: 100, display: 'flex', flexDirection: 'column'
+        }}>
+          {/* Header */}
+          <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.5)', color: 'white', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+            <button onClick={() => setTakingPhotoFor(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ArrowLeft size={20} />
+            </button>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '500' }}>Foto Absen {takingPhotoFor}</h3>
+            <div style={{ width: '40px' }}></div> {/* spacer */}
+          </div>
+          
+          {/* Webcam */}
+          <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              videoConstraints={{ facingMode: "user" }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+            {errorMsg && (
+              <div style={{ position: 'absolute', top: '80px', left: '1rem', right: '1rem', background: 'rgba(239, 68, 68, 0.9)', color: 'white', padding: '1rem', borderRadius: '0.5rem', textAlign: 'center' }}>
+                {errorMsg}
+              </div>
+            )}
+          </div>
+          
+          {/* Footer controls */}
+          <div style={{ padding: '2rem', display: 'flex', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+            <button 
+              onClick={captureAndSubmit}
+              disabled={loading}
+              style={{ 
+                width: '76px', height: '76px', borderRadius: '50%', 
+                background: 'white', border: '4px solid rgba(255,255,255,0.5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                boxShadow: '0 0 20px rgba(0,0,0,0.5)',
+                transition: 'transform 0.1s',
+                transform: loading ? 'scale(0.95)' : 'scale(1)'
+              }}
+            >
+              {loading ? (
+                <div className="spinner spinner-primary"></div>
+              ) : (
+                <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '2px solid black' }}></div>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
+
