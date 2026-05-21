@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -9,8 +9,14 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,11 +45,17 @@ export default function Login() {
   };
 
   return (
-    <div className="flex items-center justify-center w-full" style={{ minHeight: '80vh' }}>
-      <div className="card glass" style={{ maxWidth: '400px', width: '100%' }}>
-        <div className="text-center mb-4">
-          <h2 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>Melati Dental Care</h2>
-          <p className="form-label">Sistem Absensi Karyawan</p>
+    <div className="login-wrapper">
+      <div className="card glass login-card">
+        <div className="login-brand">
+          <span className="login-icon">🦷</span>
+          <h2>Melati Dental Care</h2>
+          <p className="login-tagline">Sistem Absensi Karyawan</p>
+          <p className="login-time">
+            {currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            {' • '}
+            {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </p>
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
