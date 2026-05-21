@@ -28,9 +28,6 @@ function formatJamKerja(val, defaultVal) {
       // Koreksi offset historis LMT Indonesia (+07:07:12 -> +07:00:00) yang sering terjadi di Google Sheets
       d.setMinutes(d.getMinutes() + 7);
       d.setSeconds(d.getSeconds() + 12);
-      // Memastikan menitnya dibulatkan ke kelipatan 5 untuk menghindari jam aneh seperti 16:59
-      const m = d.getMinutes();
-      d.setMinutes(Math.round(m / 5) * 5);
       return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     } catch(e) {
       return s;
@@ -85,6 +82,9 @@ export default function Admin() {
   const [newJamSelesaiSabtu, setNewJamSelesaiSabtu] = useState('17:00');
   const [newToleransi, setNewToleransi] = useState(15);
   const [newStatus, setNewStatus] = useState('pegawai');
+  const [newRole, setNewRole] = useState('user');
+  const [newBatasAwalMasuk, setNewBatasAwalMasuk] = useState(60);
+  const [newBatasAkhirPulang, setNewBatasAkhirPulang] = useState(240);
   const [addingUser, setAddingUser] = useState(false);
 
   // Edit user modal
@@ -95,6 +95,9 @@ export default function Admin() {
   const [editJamSelesaiSabtu, setEditJamSelesaiSabtu] = useState('');
   const [editToleransi, setEditToleransi] = useState('');
   const [editStatus, setEditStatus] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [editBatasAwalMasuk, setEditBatasAwalMasuk] = useState(60);
+  const [editBatasAkhirPulang, setEditBatasAkhirPulang] = useState(240);
   const [savingUser, setSavingUser] = useState(false);
 
   // ─── Data Fetching ─────────────────────────────────────────
@@ -319,7 +322,9 @@ export default function Admin() {
         jamSelesaiSabtu: newJamSelesaiSabtu,
         toleransi: newToleransi,
         status: newStatus,
-        role: 'user'
+        role: newRole,
+        batasAwalMasuk: newBatasAwalMasuk,
+        batasAkhirPulang: newBatasAkhirPulang
       });
       setNewNama('');
       setNewNowa('');
@@ -329,6 +334,10 @@ export default function Admin() {
       setNewJamMulaiSabtu('10:00');
       setNewJamSelesaiSabtu('17:00');
       setNewToleransi(15);
+      setNewStatus('pegawai');
+      setNewRole('user');
+      setNewBatasAwalMasuk(60);
+      setNewBatasAkhirPulang(240);
       setSuccessMsg('Karyawan berhasil ditambahkan!');
       fetchData();
     } catch (err) {
@@ -346,6 +355,9 @@ export default function Admin() {
     setEditJamSelesaiSabtu(formatJamKerja(u.jamSelesaiSabtu, '17:00'));
     setEditToleransi(u.toleransi || 15);
     setEditStatus(u.status || 'pegawai');
+    setEditRole(u.role || 'user');
+    setEditBatasAwalMasuk(u.batasAwalMasuk !== undefined ? u.batasAwalMasuk : 60);
+    setEditBatasAkhirPulang(u.batasAkhirPulang !== undefined ? u.batasAkhirPulang : 240);
     setErrorMsg('');
     setSuccessMsg('');
   };
@@ -364,7 +376,10 @@ export default function Admin() {
         jamMulaiSabtu: editJamMulaiSabtu,
         jamSelesaiSabtu: editJamSelesaiSabtu,
         toleransi: editToleransi,
-        status: editStatus
+        status: editStatus,
+        role: editRole,
+        batasAwalMasuk: editBatasAwalMasuk,
+        batasAkhirPulang: editBatasAkhirPulang
       });
       setEditingUser(null);
       setSuccessMsg('Data karyawan berhasil diperbarui!');
@@ -488,7 +503,20 @@ export default function Admin() {
                         {item.tipe}
                       </span>
                     </td>
-                    <td>{item.jarak} m</td>
+                    <td>
+                      {item.jarak} m
+                      {item.koordinat && (
+                        <a 
+                          href={`https://www.google.com/maps?q=${item.koordinat}`} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          style={{ marginLeft: '8px', fontSize: '0.8rem', color: 'var(--primary)', textDecoration: 'none' }}
+                        >
+                          <MapPin size={12} style={{ display: 'inline', marginRight: '2px' }}/>
+                          Peta
+                        </a>
+                      )}
+                    </td>
                     <td>
                       {item.fotoUrl ? (
                         <a
@@ -780,8 +808,41 @@ export default function Admin() {
               onChange={e => setNewStatus(e.target.value)}
             >
               <option value="pegawai">Pegawai</option>
-              <option value="perawat">Perawat</option>
+              <option value="magang">Magang</option>
+              <option value="freelance">Freelance</option>
             </select>
+          </div>
+          <div className="form-group" style={{ flex: '1 1 160px' }}>
+            <label className="form-label">Role Akun</label>
+            <select
+              className="form-input"
+              value={newRole}
+              onChange={e => setNewRole(e.target.value)}
+            >
+              <option value="user">User Biasa</option>
+              <option value="user_bebas">User Bebas Lokasi</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ flex: '1 1 180px' }}>
+            <label className="form-label">Batas Awal Masuk (mnt)</label>
+            <input
+              type="number"
+              className="form-input"
+              value={newBatasAwalMasuk}
+              onChange={e => setNewBatasAwalMasuk(Number(e.target.value))}
+              placeholder="60"
+            />
+          </div>
+          <div className="form-group" style={{ flex: '1 1 180px' }}>
+            <label className="form-label">Batas Akhir Pulang (mnt)</label>
+            <input
+              type="number"
+              className="form-input"
+              value={newBatasAkhirPulang}
+              onChange={e => setNewBatasAkhirPulang(Number(e.target.value))}
+              placeholder="240"
+            />
           </div>
         </div>
         <button type="submit" className="btn btn-primary mt-4" disabled={addingUser}>
@@ -1008,8 +1069,43 @@ export default function Admin() {
                   onChange={e => setEditStatus(e.target.value)}
                 >
                   <option value="pegawai">Pegawai</option>
-                  <option value="perawat">Perawat</option>
+                  <option value="magang">Magang</option>
+                  <option value="freelance">Freelance</option>
                 </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Role Akun</label>
+                <select
+                  className="form-input"
+                  value={editRole}
+                  onChange={e => setEditRole(e.target.value)}
+                >
+                  <option value="user">User Biasa</option>
+                  <option value="user_bebas">User Bebas Lokasi</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div className="flex gap-4">
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label">Batas Awal Masuk (mnt)</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={editBatasAwalMasuk}
+                    onChange={e => setEditBatasAwalMasuk(Number(e.target.value))}
+                    placeholder="60"
+                  />
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label">Batas Akhir Pulang (mnt)</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={editBatasAkhirPulang}
+                    onChange={e => setEditBatasAkhirPulang(Number(e.target.value))}
+                    placeholder="240"
+                  />
+                </div>
               </div>
               <div className="flex gap-2 mt-4">
                 <button type="submit" className="btn btn-primary" disabled={savingUser} style={{ flex: 1 }}>

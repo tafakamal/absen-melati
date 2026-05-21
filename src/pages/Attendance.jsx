@@ -31,9 +31,6 @@ function formatJamKerja(val, defaultVal) {
       // Koreksi offset historis LMT Indonesia (+07:07:12 -> +07:00:00) yang sering terjadi di Google Sheets
       d.setMinutes(d.getMinutes() + 7);
       d.setSeconds(d.getSeconds() + 12);
-      // Memastikan menitnya dibulatkan ke kelipatan 5 untuk menghindari jam aneh seperti 16:59
-      const m = d.getMinutes();
-      d.setMinutes(Math.round(m / 5) * 5);
       return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     } catch(e) {
       return s;
@@ -59,6 +56,7 @@ export default function Attendance() {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // History states
   const [activeTab, setActiveTab] = useState('riwayat');
@@ -180,7 +178,7 @@ export default function Attendance() {
       
       setSuccessMsg(`Berhasil melakukan absen ${takingPhotoFor}!`);
       setTakingPhotoFor(null);
-      setActiveTab('riwayat');
+      setShowSuccessModal(true);
       fetchHistory();
     } catch (err) {
       setErrorMsg(err.message);
@@ -211,7 +209,42 @@ export default function Attendance() {
     return d === todayStr && item.tipe === 'Keluar';
   });
 
-  const isLocationValid = location && distance !== null && distance <= clinicConfig?.max_dist;
+  const isBebasLokasi = user?.role === 'admin' || user?.role === 'user_bebas';
+  const isLocationValid = isBebasLokasi || (location && distance !== null && distance <= clinicConfig?.max_dist);
+
+  const getJamKerja = () => {
+    const isSabtu = currentTime.getDay() === 6;
+    const jm = isSabtu ? (user.jamMulaiSabtu || '10:00') : (user.jamMulai || '17:00');
+    const js = isSabtu ? (user.jamSelesaiSabtu || '17:00') : (user.jamSelesai || '20:30');
+    return { jm: formatJamKerja(jm, jm), js: formatJamKerja(js, js) };
+  };
+
+  const checkTimeBounds = () => {
+    const { jm, js } = getJamKerja();
+    const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes();
+    
+    const parseTimeStr = (ts) => {
+      const [h, m] = String(ts).split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    };
+
+    const minsMulai = parseTimeStr(jm);
+    const minsSelesai = parseTimeStr(js);
+
+    const batasAwal = user?.batasAwalMasuk !== undefined ? user.batasAwalMasuk : 60;
+    const batasAkhir = user?.batasAkhirPulang !== undefined ? user.batasAkhirPulang : 240;
+
+    const allowedMasuk = currentMins >= (minsMulai - batasAwal) && currentMins <= minsSelesai;
+    const allowedKeluar = currentMins >= minsMulai && currentMins <= (minsSelesai + batasAkhir);
+
+    return { allowedMasuk, allowedKeluar };
+  };
+
+  const { allowedMasuk, allowedKeluar } = checkTimeBounds();
+
+  const disableMasuk = !isLocationValid || hasAbsenMasukToday || !allowedMasuk;
+  const disablePulang = !isLocationValid || hasAbsenKeluarToday || !hasAbsenMasukToday || !allowedKeluar;
+
 
   if (fetchingSettings) {
     return (
@@ -312,17 +345,19 @@ export default function Attendance() {
                 style={{ 
                   background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)', 
                   color: 'white', padding: '1.5rem', borderRadius: '1rem', border: 'none',
-                  opacity: (!isLocationValid || hasAbsenMasukToday) ? 0.5 : 1,
+                  opacity: disableMasuk ? 0.5 : 1,
                   boxShadow: '0 10px 25px -5px rgba(16, 185, 129, 0.4)',
-                  cursor: (!isLocationValid || hasAbsenMasukToday) ? 'not-allowed' : 'pointer'
+                  cursor: disableMasuk ? 'not-allowed' : 'pointer'
                 }}
                 onClick={() => setTakingPhotoFor('Masuk')}
-                disabled={!isLocationValid || hasAbsenMasukToday}
+                disabled={disableMasuk}
               >
                 <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
                   <CheckCircle size={24} />
                 </div>
-                <span style={{ fontSize: '1.2rem', fontWeight: '700' }}>{hasAbsenMasukToday ? 'Sudah Masuk' : 'Masuk'}</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: '700' }}>
+                  {hasAbsenMasukToday ? 'Sudah Masuk' : (!allowedMasuk ? 'Di Luar Jam' : 'Masuk')}
+                </span>
               </button>
               
               <button 
@@ -330,17 +365,19 @@ export default function Attendance() {
                 style={{ 
                   background: 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)', 
                   color: 'white', padding: '1.5rem', borderRadius: '1rem', border: 'none',
-                  opacity: (!isLocationValid || hasAbsenKeluarToday) ? 0.5 : 1,
+                  opacity: disablePulang ? 0.5 : 1,
                   boxShadow: '0 10px 25px -5px rgba(249, 115, 22, 0.4)',
-                  cursor: (!isLocationValid || hasAbsenKeluarToday) ? 'not-allowed' : 'pointer'
+                  cursor: disablePulang ? 'not-allowed' : 'pointer'
                 }}
                 onClick={() => setTakingPhotoFor('Keluar')}
-                disabled={!isLocationValid || hasAbsenKeluarToday}
+                disabled={disablePulang}
               >
                 <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
                   <LogOut size={24} />
                 </div>
-                <span style={{ fontSize: '1.2rem', fontWeight: '700' }}>{hasAbsenKeluarToday ? 'Sudah Pulang' : 'Pulang'}</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: '700' }}>
+                  {!hasAbsenMasukToday ? 'Belum Masuk' : (hasAbsenKeluarToday ? 'Sudah Pulang' : (!allowedKeluar ? 'Di Luar Jam' : 'Pulang'))}
+                </span>
               </button>
             </div>
           </div>
@@ -493,6 +530,23 @@ export default function Attendance() {
                 <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '2px solid black' }}></div>
               )}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Success PopUp Modal */}
+      {showSuccessModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card text-center" style={{ width: '90%', maxWidth: '320px', padding: '2rem', animation: 'scaleIn 0.3s ease-out' }}>
+            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--success)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+              <CheckCircle size={48} />
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Absen Berhasil!</h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Data absensi Anda telah tersimpan.</p>
+            <button className="btn btn-primary w-full" onClick={() => {
+              setShowSuccessModal(false);
+              setActiveTab('riwayat');
+            }}>Tutup & Lihat Riwayat</button>
           </div>
         </div>
       )}
