@@ -10,11 +10,22 @@ export default function Login() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [logo, setLogo] = useState(null);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    
+    // Fetch settings to get the logo
+    callApi({ action: 'get_settings' })
+      .then(res => {
+        if (res.settings && res.settings.KLINIK_LOGO) {
+          setLogo(res.settings.KLINIK_LOGO);
+        }
+      })
+      .catch(console.error);
+
     return () => clearInterval(timer);
   }, []);
 
@@ -48,7 +59,11 @@ export default function Login() {
     <div className="login-wrapper">
       <div className="card glass login-card">
         <div className="login-brand">
-          <span className="login-icon">🦷</span>
+          {logo ? (
+            <img src={logo} alt="Klinik Logo" style={{ width: '80px', height: '80px', objectFit: 'contain', marginBottom: '1rem', borderRadius: '12px' }} />
+          ) : (
+            <span className="login-icon">🦷</span>
+          )}
           <h2>Melati Dental Care</h2>
           <p className="login-tagline">Sistem Absensi Karyawan</p>
           <p className="login-time">

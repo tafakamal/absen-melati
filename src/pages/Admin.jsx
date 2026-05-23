@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, FileText, UserPlus, LogOut, ArrowLeft, Settings, Save,
   Clock, Calendar, Filter, Edit3, X, ChevronDown, BarChart3,
-  AlertTriangle, CheckCircle, Timer
+  AlertTriangle, CheckCircle, Timer, MapPin, Upload
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { callApi } from '../api';
@@ -58,7 +58,8 @@ export default function Admin() {
   // Data
   const [users, setUsers] = useState([]);
   const [report, setReport] = useState([]);
-  const [settings, setSettings] = useState({ KLINIK_LAT: '', KLINIK_LNG: '', MAX_DISTANCE: '' });
+  const [settings, setSettings] = useState({ KLINIK_LAT: '', KLINIK_LNG: '', MAX_DISTANCE: '', KLINIK_LOGO: '' });
+  const [logoBase64, setLogoBase64] = useState(null);
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -404,8 +405,10 @@ export default function Admin() {
     try {
       await callApi({
         action: 'save_settings',
-        settings: sanitizedSettings
+        settings: sanitizedSettings,
+        logoBase64: logoBase64
       });
+      setLogoBase64(null); // reset file state after success
       setSettings({
         ...sanitizedSettings,
         KLINIK_LAT: sanitizedSettings.KLINIK_LAT.replace('_', ''),
@@ -905,12 +908,33 @@ export default function Admin() {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" disabled={savingSettings}>
-            {savingSettings ? (
-              <div className="spinner"></div>
-            ) : (
-              <><Save size={18} /> Simpan Pengaturan</>
+          <div className="form-group mb-0">
+            <label className="form-label">Upload Logo Klinik Baru (Opsional)</label>
+            <input
+              type="file"
+              accept="image/*"
+              className="form-input"
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => setLogoBase64(reader.result);
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+            {logoBase64 && <p style={{fontSize:'0.8rem', color:'var(--success)', marginTop:'0.2rem'}}>Logo siap diunggah</p>}
+            {settings.KLINIK_LOGO && !logoBase64 && (
+              <div style={{marginTop:'0.5rem'}}>
+                <span style={{fontSize:'0.85rem', color:'var(--text-muted)'}}>Logo saat ini:</span><br/>
+                <img src={settings.KLINIK_LOGO} alt="Current Logo" style={{maxHeight:'50px', borderRadius:'4px', marginTop:'0.2rem'}} />
+              </div>
             )}
+          </div>
+
+          <button type="submit" className="btn btn-primary mt-2" disabled={savingSettings}>
+            {savingSettings ? <div className="spinner spinner-sm"></div> : <Save size={18} />}
+            Simpan Pengaturan
           </button>
         </div>
       </form>

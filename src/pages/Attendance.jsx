@@ -91,7 +91,8 @@ export default function Attendance() {
         setClinicConfig({
           lat: parseCoord(res.settings.KLINIK_LAT),
           lng: parseCoord(res.settings.KLINIK_LNG),
-          max_dist: parseInt(res.settings.MAX_DISTANCE || '100', 10)
+          max_dist: parseInt(res.settings.MAX_DISTANCE || '100', 10),
+          logo: res.settings.KLINIK_LOGO || null
         });
       } catch (err) {
         setLocError('Gagal mengambil pengaturan koordinat dari server. Hubungi Admin.');
@@ -258,7 +259,10 @@ export default function Attendance() {
   return (
     <>
       <div className="page-header" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-        <div className="page-header-left">
+        <div className="page-header-left" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {clinicConfig?.logo && (
+            <img src={clinicConfig.logo} alt="Logo" style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '8px' }} />
+          )}
           <div>
             <div className="page-title">Absensi</div>
             <div className="page-subtitle">Halo, <strong style={{ color: 'var(--text-primary)' }}>{user?.nama}</strong></div>
@@ -360,25 +364,27 @@ export default function Attendance() {
                 </span>
               </button>
               
-              <button 
-                className="btn flex-1 justify-center flex-col gap-2" 
-                style={{ 
-                  background: 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)', 
-                  color: 'white', padding: '1.5rem', borderRadius: '1rem', border: 'none',
-                  opacity: disablePulang ? 0.5 : 1,
-                  boxShadow: '0 10px 25px -5px rgba(249, 115, 22, 0.4)',
-                  cursor: disablePulang ? 'not-allowed' : 'pointer'
-                }}
-                onClick={() => setTakingPhotoFor('Keluar')}
-                disabled={disablePulang}
-              >
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
-                  <LogOut size={24} />
-                </div>
-                <span style={{ fontSize: '1.2rem', fontWeight: '700' }}>
-                  {!hasAbsenMasukToday ? 'Belum Masuk' : (hasAbsenKeluarToday ? 'Sudah Pulang' : (!allowedKeluar ? 'Di Luar Jam' : 'Pulang'))}
-                </span>
-              </button>
+              {allowedKeluar && (
+                <button 
+                  className="btn flex-1 justify-center flex-col gap-2" 
+                  style={{ 
+                    background: 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)', 
+                    color: 'white', padding: '1.5rem', borderRadius: '1rem', border: 'none',
+                    opacity: disablePulang ? 0.5 : 1,
+                    boxShadow: '0 10px 25px -5px rgba(249, 115, 22, 0.4)',
+                    cursor: disablePulang ? 'not-allowed' : 'pointer'
+                  }}
+                  onClick={() => setTakingPhotoFor('Keluar')}
+                  disabled={disablePulang}
+                >
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                    <LogOut size={24} />
+                  </div>
+                  <span style={{ fontSize: '1.2rem', fontWeight: '700' }}>
+                    {!hasAbsenMasukToday ? 'Belum Masuk' : (hasAbsenKeluarToday ? 'Sudah Pulang' : 'Pulang')}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -542,7 +548,20 @@ export default function Attendance() {
               <CheckCircle size={48} />
             </div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Absen Berhasil!</h2>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Data absensi Anda telah tersimpan.</p>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>Data absensi Anda telah tersimpan.</p>
+            
+            {successMsg.includes('Masuk') && (
+              <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+                <p style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--primary)', marginBottom: '0.5rem', lineHeight: '1.6', fontFamily: 'serif' }} dir="rtl">
+                  اللَّهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا، وَرِزْقًا طَيِّبًا، وَعَمَلًا مُتَقَبَّلًا
+                </p>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', lineHeight: '1.4' }}>
+                  "Ya Allah, sungguh aku memohon kepada-Mu ilmu yang bermanfaat, rezeki yang baik, dan amal yang diterima."
+                </p>
+                <p style={{ fontSize: '0.95rem', color: 'var(--text-primary)', fontWeight: 'bold', marginTop: '0.75rem' }}>Selamat Bekerja!</p>
+              </div>
+            )}
+
             <button className="btn btn-primary w-full" onClick={() => {
               setShowSuccessModal(false);
               setActiveTab('riwayat');
