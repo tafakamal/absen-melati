@@ -49,7 +49,7 @@
 }
 
 body {
-  font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background-color: var(--background);
   background-image:
     radial-gradient(at 0% 0%, hsla(158,82%,57%,0.08) 0px, transparent 50%),
