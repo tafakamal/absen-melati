@@ -260,9 +260,11 @@ export default function Attendance() {
     <>
       <div className="page-header" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
         <div className="page-header-left" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {clinicConfig?.logo && (
-            <img src={clinicConfig.logo.includes('/d/') ? `https://drive.google.com/thumbnail?id=${clinicConfig.logo.split('/d/')[1].split('/')[0]}&sz=w200` : clinicConfig.logo} alt="Logo" style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '8px' }} />
-          )}
+          <img 
+            src={clinicConfig?.logo ? (clinicConfig.logo.includes('/d/') ? `https://drive.google.com/thumbnail?id=${clinicConfig.logo.split('/d/')[1].split('/')[0]}&sz=w200` : clinicConfig.logo) : '/logo2.png'} 
+            alt="Logo" 
+            style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '8px' }} 
+          />
           <div>
             <div className="page-title">Melati Dental Care</div>
             <div className="page-subtitle">Assalamu'alaikum, <strong style={{ color: 'var(--text-primary)' }}>{user?.nama}</strong></div>
