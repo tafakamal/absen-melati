@@ -59,11 +59,11 @@ export default function Login() {
     <div className="login-wrapper">
       <div className="card glass login-card">
         <div className="login-brand">
-          {logo ? (
-            <img src={logo} alt="Klinik Logo" style={{ width: '80px', height: '80px', objectFit: 'contain', marginBottom: '1rem', borderRadius: '12px' }} />
-          ) : (
-            <span className="login-icon">🦷</span>
-          )}
+          <img 
+            src={logo ? (logo.includes('/d/') ? `https://drive.google.com/thumbnail?id=${logo.split('/d/')[1].split('/')[0]}&sz=w400` : logo) : '/logo2.png'} 
+            alt="Klinik Logo" 
+            style={{ width: '80px', height: '80px', objectFit: 'contain', marginBottom: '1rem', borderRadius: '12px' }} 
+          />
           <h2>Melati Dental Care</h2>
           <p className="login-tagline">Sistem Absensi Karyawan</p>
           <p className="login-time">
