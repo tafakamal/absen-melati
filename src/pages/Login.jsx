@@ -43,6 +43,20 @@ export default function Login() {
 
       login(result.user);
       
+      // Request fullscreen programmatically on user interaction
+      try {
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) {
+          elem.requestFullscreen().catch(() => {});
+        } else if (elem.webkitRequestFullscreen) {
+          elem.webkitRequestFullscreen();
+        } else if (elem.msRequestFullscreen) {
+          elem.msRequestFullscreen();
+        }
+      } catch (f) {
+        // ignore fullscreen blocker
+      }
+      
       if (result.user.role === 'admin') {
         navigate('/admin');
       } else {

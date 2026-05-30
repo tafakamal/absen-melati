@@ -65,6 +65,7 @@ body {
 
 .app-container {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -103,6 +104,7 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
   padding: 1rem 2.5rem;
+  padding-top: calc(1rem + env(safe-area-inset-top));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -113,6 +115,7 @@ body {
 @media (max-width: 768px) {
   .page-header {
     padding: 0.875rem 1rem;
+    padding-top: calc(0.875rem + env(safe-area-inset-top));
   }
 }
 
@@ -880,6 +883,7 @@ tr:hover td {
     radial-gradient(at 30% 20%, hsla(158,82%,57%,0.12) 0px, transparent 50%),
     radial-gradient(at 70% 80%, hsla(199,89%,48%,0.1) 0px, transparent 50%);
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .login-card {
@@ -945,4 +949,31 @@ tr:hover td {
 
 @media (min-width: 641px) {
   .sm\:inline { display: inline !important; }
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: 0.5rem;
+  }
+  .modal {
+    padding: 1rem 1.25rem 1.5rem 1.25rem;
+    max-height: 95vh;
+    border-radius: var(--radius-lg);
+  }
+  .weekly-schedule-grid {
+    padding: 0.5rem;
+  }
+  .schedule-header {
+    grid-template-columns: 2fr 1fr 3fr;
+  }
+  .schedule-row {
+    grid-template-columns: 2fr 1fr 3fr;
+  }
+  .day-times {
+    gap: 0.25rem;
+  }
+  .day-times .time-small {
+    padding: 0.25rem 0.35rem;
+    font-size: 0.8rem;
+  }
 }

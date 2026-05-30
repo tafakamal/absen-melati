@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, FileText, UserPlus, LogOut, ArrowLeft, Settings, Save,
   Clock, Calendar, Filter, Edit3, X, ChevronDown, BarChart3,
-  AlertTriangle, CheckCircle, Timer, MapPin, Upload
+  AlertTriangle, CheckCircle, Timer, MapPin, Upload, Maximize2, Minimize2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { callApi } from '../api';
@@ -70,6 +70,48 @@ export default function Admin() {
   const [report, setReport] = useState([]);
   const [settings, setSettings] = useState({ KLINIK_LAT: '', KLINIK_LNG: '', MAX_DISTANCE: '', KLINIK_LOGO: '' });
   const [logoBase64, setLogoBase64] = useState(null);
+
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement || !!document.webkitFullscreenElement || !!document.msFullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    try {
+      if (!isFullscreen) {
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) {
+          elem.requestFullscreen().catch(() => {});
+        } else if (elem.webkitRequestFullscreen) {
+          elem.webkitRequestFullscreen();
+        } else if (elem.msRequestFullscreen) {
+          elem.msRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) {
+          document.msExitFullscreen();
+        }
+      }
+    } catch(e) {
+      console.error(e);
+    }
+  };
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -1077,6 +1119,14 @@ export default function Admin() {
           <p className="form-label" style={{ marginBottom: 0 }}>Melati Dental Care — Sistem Absensi</p>
         </div>
         <div className="flex items-center gap-2">
+          <button 
+            className="btn btn-ghost" 
+            onClick={toggleFullscreen} 
+            title={isFullscreen ? "Keluar Layar Penuh" : "Layar Penuh"}
+            style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)' }}
+          >
+            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
           <button className="btn btn-secondary" onClick={() => navigate('/')} style={{ padding: '0.5rem 1rem' }}>
             <ArrowLeft size={16} /> Absen
           </button>
