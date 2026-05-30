@@ -63,6 +63,55 @@ export default function Attendance() {
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [underDevFeature, setUnderDevFeature] = useState(null);
+  const [avatarUrl, setAvatarUrl] = useState('');
+
+  useEffect(() => {
+    if (user?.nowa) {
+      const savedAvatar = localStorage.getItem(`user_avatar_${user.nowa}`);
+      if (savedAvatar) {
+        setAvatarUrl(savedAvatar);
+      }
+    }
+  }, [user]);
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 120;
+          const MAX_HEIGHT = 120;
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.75);
+          setAvatarUrl(compressedBase64);
+          localStorage.setItem(`user_avatar_${user.nowa}`, compressedBase64);
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Camera state
   const [takingPhotoFor, setTakingPhotoFor] = useState(null); // 'Masuk' | 'Keluar' | null
@@ -399,56 +448,6 @@ export default function Attendance() {
 
   return (
     <>
-      {activeTab === 'riwayat' && (
-        <div className="page-header" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-          <div className="page-header-left" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <img 
-              src={clinicConfig?.logo ? (clinicConfig.logo.includes('/d/') ? `https://drive.google.com/thumbnail?id=${clinicConfig.logo.split('/d/')[1].split('/')[0]}&sz=w200` : clinicConfig.logo) : '/logo2.png'} 
-              alt="Logo" 
-              style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '8px' }} 
-            />
-            <div>
-              <div className="page-title">Melati Dental Care</div>
-              <div className="page-subtitle">Assalamu'alaikum, <strong style={{ color: 'var(--text-primary)' }}>{user?.nama}</strong></div>
-            </div>
-          </div>
-          <div className="page-header-right" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <button 
-              className="btn btn-ghost btn-sm" 
-              onClick={toggleFullscreen} 
-              title={isFullscreen ? "Keluar Layar Penuh" : "Layar Penuh"}
-              style={{ padding: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)' }}
-            >
-              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
-            
-            <button 
-              className="btn btn-ghost btn-sm notif-badge-container" 
-              onClick={() => {
-                markNotificationsAsRead();
-                setShowNotifModal(true);
-              }}
-              title="Notifikasi"
-              style={{ padding: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', background: 'var(--surface)' }}
-            >
-              <Bell size={16} />
-              {unreadNotifCount > 0 && <span className="notif-badge">{unreadNotifCount}</span>}
-            </button>
-
-            {user?.role === 'admin' && (
-              <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin')} title="Dashboard Admin" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <BarChart3 size={14} />
-                <span className="sm-visible">Dashboard</span>
-              </button>
-            )}
-            
-            <button className="btn btn-danger btn-sm" onClick={handleLogout} title="Keluar" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <LogOut size={14} />
-              <span className="sm-visible">Keluar</span>
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="main-content" style={{ paddingBottom: '90px' }}>
         {errorMsg && !takingPhotoFor && <div className="alert alert-error mb-4" style={{ margin: '1rem 1.25rem 0' }}>{errorMsg}</div>}
@@ -460,17 +459,34 @@ export default function Attendance() {
             <div className="home-header-bg">
               <div className="home-profile-section">
                 <div className="home-profile-left">
-                  <img 
-                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.nama || '')}&backgroundColor=059669,10b981,047857&fontSize=42&fontFamily=Inter`} 
-                    alt="Avatar" 
-                    className="home-avatar"
-                  />
+                  <label htmlFor="home-avatar-upload" style={{ cursor: 'pointer', display: 'block', position: 'relative' }} title="Klik untuk ganti foto">
+                    <img 
+                      src={avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.nama || '')}&backgroundColor=059669,10b981,047857&fontSize=42&fontFamily=Inter`} 
+                      alt="Avatar" 
+                      className="home-avatar"
+                    />
+                    <input 
+                      id="home-avatar-upload" 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleAvatarChange} 
+                      style={{ display: 'none' }} 
+                    />
+                  </label>
                   <div>
+                    <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255, 255, 255, 0.75)', fontWeight: '700', marginBottom: '0.2rem' }}>Melati Dental Care</div>
                     <div className="home-greeting">Assalamu'alaikum,</div>
                     <div className="home-user-name">{user?.nama}</div>
                   </div>
                 </div>
                 <div className="home-profile-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button 
+                    className="home-bell-btn" 
+                    onClick={toggleFullscreen} 
+                    title={isFullscreen ? "Keluar Layar Penuh" : "Layar Penuh"}
+                  >
+                    {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                  </button>
                   {user?.role === 'admin' && (
                     <button 
                       className="home-bell-btn" 
@@ -611,72 +627,78 @@ export default function Attendance() {
               </div>
             </div>
 
-            {/* Menu Grid */}
-            <div className="home-services-card">
-              <div className="home-services-grid">
-                {/* Kehadiran */}
-                <div 
-                  className="home-service-item"
-                  onClick={() => setActiveTab('riwayat')}
+            {/* Last 5 Attendance Records */}
+            <div className="home-services-card" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <h3 style={{ fontSize: '0.92rem', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <History size={16} style={{ color: 'var(--primary)' }} />
+                  Riwayat Absensi Terakhir
+                </h3>
+                <button 
+                  onClick={() => setActiveTab('riwayat')} 
+                  style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer' }}
                 >
-                  <div className="home-service-icon-circle" style={{ background: '#ecfdf5', color: '#059669' }}>
-                    <Clock size={20} />
-                  </div>
-                  <span className="home-service-label">Kehadiran</span>
-                </div>
+                  Lihat Semua
+                </button>
+              </div>
 
-                {/* Gaji */}
-                <div 
-                  className="home-service-item"
-                  onClick={() => setUnderDevFeature({
-                    title: "Slip Gaji",
-                    message: "Fitur rekapitulasi penggajian digital sedang dalam tahap pengembangan sistem keamanan."
-                  })}
-                >
-                  <div className="home-service-icon-circle" style={{ background: '#fff7ed', color: '#ea580c' }}>
-                    <Wallet size={20} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {history.slice(0, 5).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '1.75rem', color: 'var(--text-muted)', fontSize: '0.82rem', background: 'var(--surface-hover)', borderRadius: '1rem', border: '1px dashed var(--border)' }}>
+                    Belum ada riwayat absensi terdeteksi.
                   </div>
-                  <span className="home-service-label">Gaji</span>
-                </div>
-
-                {/* Perusahaan */}
-                <div 
-                  className="home-service-item"
-                  onClick={() => setUnderDevFeature({
-                    title: "Profil Klinik",
-                    message: "Informasi operasional, SOP, dan kebijakan internal Melati Dental Care."
-                  })}
-                >
-                  <div className="home-service-icon-circle" style={{ background: '#f0fdfa', color: '#0d9488' }}>
-                    <Building2 size={20} />
-                  </div>
-                  <span className="home-service-label">Perusahaan</span>
-                </div>
-
-                {/* Kalender */}
-                <div 
-                  className="home-service-item"
-                  onClick={() => setActiveTab('riwayat')}
-                >
-                  <div className="home-service-icon-circle" style={{ background: '#fef2f2', color: '#dc2626' }}>
-                    <Calendar size={20} />
-                  </div>
-                  <span className="home-service-label">Kalender</span>
-                </div>
-
-                {/* Inbox */}
-                <div 
-                  className="home-service-item"
-                  onClick={() => setUnderDevFeature({
-                    title: "Kotak Masuk (Inbox)",
-                    message: "Fitur komunikasi internal dua arah karyawan dan HRD/Admin."
-                  })}
-                >
-                  <div className="home-service-icon-circle" style={{ background: '#faf5ff', color: '#7c3aed' }}>
-                    <Package size={20} />
-                  </div>
-                  <span className="home-service-label">Inbox</span>
-                </div>
+                ) : (
+                  history.slice(0, 5).map((item, idx) => {
+                    const d = new Date(item.timestamp);
+                    const isMasuk = item.tipe === 'Masuk';
+                    return (
+                      <div 
+                        key={idx} 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'space-between', 
+                          padding: '0.75rem 1rem', 
+                          background: 'var(--surface-hover)', 
+                          borderRadius: '1rem',
+                          border: '1px solid var(--border)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{ 
+                            width: '36px', 
+                            height: '36px', 
+                            borderRadius: '50%', 
+                            background: isMasuk ? 'rgba(16, 185, 129, 0.1)' : 'rgba(249, 115, 22, 0.1)', 
+                            color: isMasuk ? 'var(--success)' : '#f97316', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center' 
+                          }}>
+                            {isMasuk ? <LogIn size={16} /> : <LogOut size={16} />}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                              Absen {item.tipe}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '500', marginTop: '0.1rem' }}>
+                              {d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' })}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-primary)' }}>
+                            {d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '500', marginTop: '0.1rem' }}>
+                            Jarak: {item.jarak}m
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>
@@ -684,11 +706,20 @@ export default function Attendance() {
           <div style={{ padding: '1.25rem' }}>
             <div className="profile-tab-card">
               <div className="profile-tab-header">
-                <img 
-                  src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.nama || '')}&backgroundColor=059669,10b981,047857&fontSize=42&fontFamily=Inter`} 
-                  alt="Avatar" 
-                  className="profile-tab-avatar"
-                />
+                <label htmlFor="profile-avatar-upload" style={{ cursor: 'pointer', display: 'block', position: 'relative' }} title="Klik untuk ganti foto">
+                  <img 
+                    src={avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.nama || '')}&backgroundColor=059669,10b981,047857&fontSize=42&fontFamily=Inter`} 
+                    alt="Avatar" 
+                    className="profile-tab-avatar"
+                  />
+                  <input 
+                    id="profile-avatar-upload" 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleAvatarChange} 
+                    style={{ display: 'none' }} 
+                  />
+                </label>
                 <div className="profile-tab-name">{user?.nama}</div>
                 <span className="profile-tab-role">{user?.role}</span>
               </div>
@@ -847,65 +878,102 @@ export default function Attendance() {
             </div>
           </div>
         ) : (
-          <div className="card glass" style={{ margin: '0 1.25rem' }}>
-            <h3 className="mb-4 flex items-center gap-2"><History size={18} /> Riwayat Absensi Saya</h3>
-            
-            <div className="filter-bar mb-4">
-              <span className="filter-label">Filter:</span>
-              <select value={filterMonth} onChange={e => setFilterMonth(Number(e.target.value))}>
-                {MONTHS.map((m, i) => (
-                  <option key={i} value={i}>{m}</option>
-                ))}
-              </select>
-              <select value={filterYear} onChange={e => setFilterYear(Number(e.target.value))}>
-                {yearOptions.map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
+          <div style={{ padding: '1.25rem' }}>
+            {/* Elegant Header - page-header is completely hidden */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-primary)' }}>Riwayat Absen</h2>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500', marginTop: '0.2rem' }}>Daftar lengkap kehadiran kerja Anda</p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <select 
+                  value={filterMonth} 
+                  onChange={e => setFilterMonth(Number(e.target.value))}
+                  style={{ padding: '0.4rem 0.6rem', borderRadius: '0.75rem', border: '1px solid var(--border)', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-primary)', background: 'white' }}
+                >
+                  {MONTHS.map((m, i) => (
+                    <option key={i} value={i}>{m}</option>
+                  ))}
+                </select>
+                <select 
+                  value={filterYear} 
+                  onChange={e => setFilterYear(Number(e.target.value))}
+                  style={{ padding: '0.4rem 0.6rem', borderRadius: '0.75rem', border: '1px solid var(--border)', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-primary)', background: 'white' }}
+                >
+                  {yearOptions.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {loadingHistory ? (
-              <div className="flex justify-center py-8">
+              <div className="flex justify-center py-12">
                 <div className="spinner spinner-primary"></div>
               </div>
+            ) : filteredHistory.length === 0 ? (
+              <div className="card text-center" style={{ padding: '3rem 1.5rem' }}>
+                <Calendar size={48} style={{ margin: '0 auto 1rem', opacity: 0.3, color: 'var(--primary)' }} />
+                <h3 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '0.25rem' }}>Tidak Ada Riwayat</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Belum ada catatan absensi untuk bulan yang dipilih.</p>
+              </div>
             ) : (
-              <div className="table-container">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Tanggal</th>
-                      <th>Jam</th>
-                      <th>Tipe</th>
-                      <th>Jarak</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredHistory.length === 0 ? (
-                      <tr>
-                        <td colSpan="4" className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
-                          <Calendar size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
-                          Belum ada riwayat absensi di bulan ini.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredHistory.map((item, idx) => {
-                        const d = new Date(item.timestamp);
-                        return (
-                          <tr key={idx}>
-                            <td style={{ fontWeight: 500 }}>{d.toLocaleDateString('id-ID')}</td>
-                            <td>{d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td>
-                              <span className={`badge ${item.tipe === 'Masuk' ? 'badge-success' : 'badge-error'}`}>
-                                {item.tipe}
-                              </span>
-                            </td>
-                            <td>{item.jarak} m</td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {filteredHistory.map((item, idx) => {
+                  const d = new Date(item.timestamp);
+                  const isMasuk = item.tipe === 'Masuk';
+                  return (
+                    <div 
+                      key={idx} 
+                      style={{ 
+                        background: 'white', 
+                        borderRadius: '1.25rem', 
+                        padding: '1rem', 
+                        boxShadow: '0 4px 15px rgba(0, 0, 0, 0.02)',
+                        border: '1px solid rgba(0, 0, 0, 0.03)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        animation: 'fadeInUp 0.3s ease-out'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                        <div style={{ 
+                          width: '40px', 
+                          height: '40px', 
+                          borderRadius: '50%', 
+                          background: isMasuk ? 'rgba(16, 185, 129, 0.1)' : 'rgba(249, 115, 22, 0.1)', 
+                          color: isMasuk ? 'var(--success)' : '#f97316', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center' 
+                        }}>
+                          {isMasuk ? <LogIn size={18} /> : <LogOut size={18} />}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-primary)' }}>
+                            Absen {item.tipe}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '500', marginTop: '0.15rem' }}>
+                            {d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-primary)' }}>
+                          {d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', marginTop: '0.15rem' }}>
+                          <MapPin size={10} style={{ color: 'var(--text-muted)' }} />
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '500' }}>
+                            {item.jarak} m
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -926,8 +994,8 @@ export default function Attendance() {
           className={`home-nav-item ${activeTab === 'riwayat' ? 'active' : ''}`}
           onClick={() => setActiveTab('riwayat')}
         >
-          <Send size={20} style={{ transform: 'rotate(-30deg)' }} />
-          <span>Time Line</span>
+          <History size={20} />
+          <span>Riwayat Absen</span>
         </button>
         
         <div 
