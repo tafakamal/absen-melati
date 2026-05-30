@@ -909,25 +909,18 @@ export default function Admin() {
           </div>
 
           <div className="form-group mb-0">
-            <label className="form-label">Upload Logo Klinik Baru (Opsional)</label>
+            <label className="form-label">Link URL Logo Klinik</label>
             <input
-              type="file"
-              accept="image/*"
+              type="text"
               className="form-input"
-              onChange={(e) => {
-                const file = e.target.files[0];
-                if (file) {
-                  const reader = new FileReader();
-                  reader.onloadend = () => setLogoBase64(reader.result);
-                  reader.readAsDataURL(file);
-                }
-              }}
+              value={settings.KLINIK_LOGO || ''}
+              onChange={e => setSettings({ ...settings, KLINIK_LOGO: e.target.value })}
+              placeholder="Contoh: https://i.ibb.co.com/Tp8ZHHp/logo2.png"
             />
-            {logoBase64 && <p style={{fontSize:'0.8rem', color:'var(--success)', marginTop:'0.2rem'}}>Logo siap diunggah</p>}
-            {settings.KLINIK_LOGO && !logoBase64 && (
+            {settings.KLINIK_LOGO && (
               <div style={{marginTop:'0.5rem'}}>
-                <span style={{fontSize:'0.85rem', color:'var(--text-muted)'}}>Logo saat ini:</span><br/>
-                <img src={settings.KLINIK_LOGO} alt="Current Logo" style={{maxHeight:'50px', borderRadius:'4px', marginTop:'0.2rem'}} />
+                <span style={{fontSize:'0.85rem', color:'var(--text-muted)'}}>Pratinjau Logo:</span><br/>
+                <img src={settings.KLINIK_LOGO.includes('/d/') ? `https://drive.google.com/thumbnail?id=${settings.KLINIK_LOGO.split('/d/')[1].split('/')[0]}&sz=w200` : settings.KLINIK_LOGO} alt="Current Logo" style={{maxHeight:'50px', borderRadius:'4px', marginTop:'0.2rem'}} />
               </div>
             )}
           </div>
