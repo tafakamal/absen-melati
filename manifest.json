@@ -3,12 +3,12 @@
   "name": "Melati Dental Care Absensi",
   "icons": [
     {
-      "src": "/logo2.png",
+      "src": "logo2.png",
       "type": "image/png",
       "sizes": "512x512"
     }
   ],
-  "start_url": "/",
+  "start_url": "./",
   "background_color": "#0f172a",
   "theme_color": "#2563eb",
   "display": "standalone",
