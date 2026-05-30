@@ -64,6 +64,7 @@ export default function Attendance() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [underDevFeature, setUnderDevFeature] = useState(null);
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [unfinishedModalSession, setUnfinishedModalSession] = useState(null);
 
   useEffect(() => {
     if (user?.nowa) {
@@ -112,6 +113,226 @@ export default function Attendance() {
       reader.readAsDataURL(file);
     }
   };
+
+  // Helper to parse time string
+  const parseTimeStr = (ts) => {
+    if (!ts) return null;
+    const [h, m] = String(ts).split(':').map(Number);
+    return { h: h || 0, m: m || 0, totalMinutes: (h || 0) * 60 + (m || 0) };
+  };
+
+  // Format duration
+  const formatDuration = (totalMinutes) => {
+    if (totalMinutes <= 0) return '-';
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (h > 0) return `${h}j ${m}m`;
+    return `${m}m`;
+  };
+
+  // Get daily recaps list
+  const getDailyRecapsList = useCallback(() => {
+    if (!history || history.length === 0) return [];
+    
+    const HARI = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const groups = {};
+
+    history.forEach(item => {
+      const d = new Date(item.timestamp);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!groups[key]) {
+        groups[key] = { date: d, masuk: null, keluar: null, keterangan: '' };
+      }
+      if (item.tipe === 'Masuk') {
+        if (!groups[key].masuk || new Date(item.timestamp) < new Date(groups[key].masuk)) {
+          groups[key].masuk = item.timestamp;
+        }
+      }
+      if (item.tipe === 'Keluar') {
+        if (!groups[key].keluar || new Date(item.timestamp) > new Date(groups[key].keluar)) {
+          groups[key].keluar = item.timestamp;
+        }
+      }
+      if (item.keterangan) {
+        groups[key].keterangan = item.keterangan;
+      }
+    });
+
+    const rows = [];
+    Object.values(groups).forEach(g => {
+      const dayOfWeek = g.date.getDay();
+      const isSabtu = dayOfWeek === 6;
+      const isAhad = dayOfWeek === 0;
+
+      let jamMulai = null;
+      let jamSelesai = null;
+      let isActive = true;
+
+      if (user?.jadwal && user.jadwal[dayOfWeek]) {
+        const dayConfig = user.jadwal[dayOfWeek];
+        if (dayConfig.active) {
+          jamMulai = parseTimeStr(dayConfig.start);
+          jamSelesai = parseTimeStr(dayConfig.end);
+        } else {
+          isActive = false;
+        }
+      } else {
+        // Fallback to legacy
+        if (isAhad) {
+          isActive = false;
+        } else {
+          const jm = isSabtu ? (user?.jamMulaiSabtu || '10:00') : (user?.jamMulai || '17:00');
+          const js = isSabtu ? (user?.jamSelesaiSabtu || '17:00') : (user?.jamSelesai || '20:30');
+          jamMulai = parseTimeStr(jm);
+          jamSelesai = parseTimeStr(js);
+        }
+      }
+
+      const toleransi = parseInt(user?.toleransi) || 15;
+
+      const formatTimeOnly = (dt) => {
+        if (!dt) return '-';
+        const dateObj = new Date(dt);
+        return dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+      };
+
+      const row = {
+        date: g.date,
+        hari: HARI[dayOfWeek],
+        isOff: !isActive,
+        jamMasuk: g.masuk ? new Date(g.masuk) : null,
+        jamMasukStr: formatTimeOnly(g.masuk),
+        jamKeluar: g.keluar ? new Date(g.keluar) : null,
+        jamKeluarStr: formatTimeOnly(g.keluar),
+        jadwalMulai: !isActive ? '-' : (jamMulai ? `${String(jamMulai.h).padStart(2, '0')}:${String(jamMulai.m).padStart(2, '0')}` : '-'),
+        jadwalSelesai: !isActive ? '-' : (jamSelesai ? `${String(jamSelesai.h).padStart(2, '0')}:${String(jamSelesai.m).padStart(2, '0')}` : '-'),
+        durasi: null,
+        status: !isActive ? 'Hari Libur' : 'Tepat Waktu',
+        lembur: null,
+        pulangCepat: null,
+        keterangan: g.keterangan || '',
+        terlambat: false
+      };
+
+      if (row.jamMasuk && row.jamKeluar) {
+        const diffMs = row.jamKeluar - row.jamMasuk;
+        const durasiMinutes = Math.floor(diffMs / 60000);
+        row.durasi = formatDuration(durasiMinutes);
+
+        if (isActive) {
+          if (jamMulai) {
+            const masukMinutes = row.jamMasuk.getHours() * 60 + row.jamMasuk.getMinutes();
+            const batasMinutes = jamMulai.totalMinutes + toleransi;
+            if (masukMinutes > batasMinutes) {
+              const terlambatMenit = masukMinutes - jamMulai.totalMinutes;
+              row.status = `Terlambat ${terlambatMenit}m`;
+              row.terlambat = true;
+            } else {
+              row.status = 'Tepat Waktu';
+            }
+          }
+
+          if (jamSelesai) {
+            const keluarMinutes = row.jamKeluar.getHours() * 60 + row.jamKeluar.getMinutes();
+            if (keluarMinutes > jamSelesai.totalMinutes) {
+              const lemburMenit = keluarMinutes - jamSelesai.totalMinutes;
+              row.lembur = formatDuration(lemburMenit);
+            } else if (keluarMinutes < jamSelesai.totalMinutes) {
+              const cepatMenit = jamSelesai.totalMinutes - keluarMinutes;
+              row.pulangCepat = formatDuration(cepatMenit);
+            }
+          }
+        }
+      } else if (row.jamMasuk) {
+        row.status = 'Belum Pulang';
+      }
+
+      rows.push(row);
+    });
+
+    return rows.sort((a, b) => b.date - a.date);
+  }, [history, user]);
+
+  // Find most recent unfinished past shift session
+  const getUnfinishedSession = useCallback(() => {
+    if (!history || history.length === 0) return null;
+
+    const HARI = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const groups = {};
+    history.forEach(item => {
+      const d = new Date(item.timestamp);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!groups[key]) {
+        groups[key] = { date: d, key, masuk: null, keluar: null };
+      }
+      if (item.tipe === 'Masuk') {
+        if (!groups[key].masuk || new Date(item.timestamp) < new Date(groups[key].masuk)) {
+          groups[key].masuk = item.timestamp;
+        }
+      }
+      if (item.tipe === 'Keluar') {
+        if (!groups[key].keluar || new Date(item.timestamp) > new Date(groups[key].keluar)) {
+          groups[key].keluar = item.timestamp;
+        }
+      }
+    });
+
+    const sortedGroups = Object.values(groups).sort((a, b) => b.date - a.date);
+
+    for (const g of sortedGroups) {
+      if (g.masuk && !g.keluar) {
+        const dayOfWeek = g.date.getDay();
+        const isSabtu = dayOfWeek === 6;
+        const isAhad = dayOfWeek === 0;
+
+        let jamSelesaiStr = '20:30';
+        let jamMulaiStr = '17:00';
+        let isActive = true;
+
+        if (user?.jadwal && user.jadwal[dayOfWeek]) {
+          const dayConfig = user.jadwal[dayOfWeek];
+          if (dayConfig.active) {
+            jamMulaiStr = dayConfig.start;
+            jamSelesaiStr = dayConfig.end;
+          } else {
+            isActive = false;
+          }
+        } else {
+          if (isAhad) {
+            isActive = false;
+          } else {
+            jamMulaiStr = isSabtu ? (user?.jamMulaiSabtu || '10:00') : (user?.jamMulai || '17:00');
+            jamSelesaiStr = isSabtu ? (user?.jamSelesaiSabtu || '17:00') : (user?.jamSelesai || '20:30');
+          }
+        }
+
+        if (!isActive) continue;
+
+        const [schH, schM] = jamSelesaiStr.split(':').map(Number);
+        const shiftEnd = new Date(g.date);
+        shiftEnd.setHours(schH || 20, schM || 30, 0, 0);
+
+        const now = new Date();
+        const isPastShiftEnd = now > shiftEnd;
+        const isPastDate = (now.getDate() !== g.date.getDate()) || 
+                           (now.getMonth() !== g.date.getMonth()) || 
+                           (now.getFullYear() !== g.date.getFullYear());
+
+        if (isPastDate || isPastShiftEnd) {
+          return {
+            date: g.date,
+            dateKey: g.key,
+            masukTime: new Date(g.masuk),
+            jamMulaiStr,
+            jamSelesaiStr,
+            hari: HARI[dayOfWeek]
+          };
+        }
+      }
+    }
+
+    return null;
+  }, [history, user]);
 
   // Camera state
   const [takingPhotoFor, setTakingPhotoFor] = useState(null); // 'Masuk' | 'Keluar' | null
@@ -325,6 +546,12 @@ export default function Attendance() {
   }, [user.nama]);
 
   useEffect(() => {
+    if (user) {
+      fetchHistory();
+    }
+  }, [user, fetchHistory]);
+
+  useEffect(() => {
     if (activeTab === 'riwayat' || activeTab === 'absen') {
       fetchHistory(); // Selalu fetch history untuk update state disable tombol
     }
@@ -459,12 +686,15 @@ export default function Attendance() {
             <div className="home-header-bg">
               <div className="home-profile-section">
                 <div className="home-profile-left">
-                  <label htmlFor="home-avatar-upload" style={{ cursor: 'pointer', display: 'block', position: 'relative' }} title="Klik untuk ganti foto">
+                  <label htmlFor="home-avatar-upload" className="avatar-container" style={{ cursor: 'pointer', display: 'block' }} title="Klik untuk ganti foto">
                     <img 
                       src={avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.nama || '')}&backgroundColor=059669,10b981,047857&fontSize=42&fontFamily=Inter`} 
                       alt="Avatar" 
                       className="home-avatar"
                     />
+                    <div className="avatar-edit-badge">
+                      <Camera size={10} />
+                    </div>
                     <input 
                       id="home-avatar-upload" 
                       type="file" 
@@ -481,7 +711,7 @@ export default function Attendance() {
                 </div>
                 <div className="home-profile-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <button 
-                    className="home-bell-btn" 
+                    className="home-bell-btn sm-hidden" 
                     onClick={toggleFullscreen} 
                     title={isFullscreen ? "Keluar Layar Penuh" : "Layar Penuh"}
                   >
@@ -516,7 +746,7 @@ export default function Attendance() {
               <div className="home-presensi-flex">
                 <div className="home-presensi-left">
                   <div className="home-day-label">
-                    {currentTime.toLocaleDateString('id-ID', { weekday: 'long' })}
+                    {currentTime.toLocaleDateString('id-ID', { weekday: 'long' }).replace('Minggu', 'Ahad')}
                   </div>
                   <div className="home-date-label">
                     {currentTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -547,54 +777,19 @@ export default function Attendance() {
                 <div className="home-presensi-divider"></div>
                 
                 <div className="home-presensi-right">
-                  {(() => {
-                    if (!hasAbsenMasukToday) {
-                      return (
-                        <button 
-                          className={`home-quick-btn masuk`}
-                          onClick={() => {
-                            if (disableMasuk) {
-                              setUnderDevFeature({
-                                title: "Presensi Masuk Terkunci",
-                                message: locError || `Anda berada di luar jangkauan kantor atau di luar jam kerja (${getJamKerja().jm} - ${getJamKerja().js}).`
-                              });
-                            } else {
-                              setTakingPhotoFor('Masuk');
-                            }
-                          }}
-                        >
-                          <LogIn size={18} />
-                          <span>Masuk</span>
-                        </button>
-                      );
-                    } else if (!hasAbsenKeluarToday && allowedKeluar) {
-                      return (
-                        <button 
-                          className="home-quick-btn keluar"
-                          onClick={() => {
-                            if (disablePulang) {
-                              setUnderDevFeature({
-                                title: "Presensi Pulang Terkunci",
-                                message: locError || "Anda berada di luar jangkauan kantor."
-                              });
-                            } else {
-                              setTakingPhotoFor('Keluar');
-                            }
-                          }}
-                        >
-                          <LogOut size={18} />
-                          <span>Keluar</span>
-                        </button>
-                      );
-                    } else {
-                      return (
-                        <button className="home-quick-btn selesai" disabled>
-                          <CheckCircle size={18} />
-                          <span>Selesai</span>
-                        </button>
-                      );
-                    }
-                  })()}
+                  <button 
+                    className="home-quick-btn masuk"
+                    onClick={() => setActiveTab('absen')}
+                    style={{
+                      background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                      color: 'white',
+                      border: 'none',
+                      boxShadow: '0 4px 12px rgba(5, 150, 105, 0.2)'
+                    }}
+                  >
+                    <Clock size={18} />
+                    <span>Absensi</span>
+                  </button>
                 </div>
               </div>
               
@@ -627,12 +822,70 @@ export default function Attendance() {
               </div>
             </div>
 
-            {/* Last 5 Attendance Records */}
+            {/* Missed checkout alert */}
+            {(() => {
+              const unfinished = getUnfinishedSession();
+              if (unfinished) {
+                return (
+                  <div 
+                    style={{ 
+                      margin: '0 1.25rem 1.25rem 1.25rem', 
+                      background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', 
+                      border: '1px solid #f59e0b',
+                      borderRadius: '1.25rem',
+                      padding: '1rem 1.25rem',
+                      boxShadow: '0 4px 15px rgba(245, 158, 11, 0.1)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.75rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Clock size={16} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.88rem', fontWeight: '800', color: '#92400e' }}>Lupa Absen Pulang!</div>
+                        <div style={{ fontSize: '0.75rem', color: '#b45309', fontWeight: '500', marginTop: '0.1rem', lineHeight: '1.3' }}>
+                          Anda belum absen pulang pada hari {unfinished.hari}, {new Date(unfinished.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                      <button 
+                        onClick={() => setUnfinishedModalSession(unfinished)}
+                        disabled={loading}
+                        style={{
+                          padding: '0.45rem 1rem',
+                          borderRadius: '0.75rem',
+                          background: '#d97706',
+                          color: 'white',
+                          border: 'none',
+                          fontSize: '0.78rem',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 4px 10px rgba(217, 119, 6, 0.2)'
+                        }}
+                      >
+                        Selesaikan Absen
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* Last 5 Attendance Records (Rekap Jam Kerja) */}
             <div className="home-services-card" style={{ padding: '1.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
                 <h3 style={{ fontSize: '0.92rem', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <History size={16} style={{ color: 'var(--primary)' }} />
-                  Riwayat Absensi Terakhir
+                  Rekap Jam Kerja Terakhir
                 </h3>
                 <button 
                   onClick={() => setActiveTab('riwayat')} 
@@ -642,62 +895,113 @@ export default function Attendance() {
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {history.slice(0, 5).length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {getDailyRecapsList().slice(0, 5).length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '1.75rem', color: 'var(--text-muted)', fontSize: '0.82rem', background: 'var(--surface-hover)', borderRadius: '1rem', border: '1px dashed var(--border)' }}>
-                    Belum ada riwayat absensi terdeteksi.
+                    Belum ada riwayat rekap kerja terdeteksi.
                   </div>
                 ) : (
-                  history.slice(0, 5).map((item, idx) => {
-                    const d = new Date(item.timestamp);
-                    const isMasuk = item.tipe === 'Masuk';
-                    return (
-                      <div 
-                        key={idx} 
-                        style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'space-between', 
-                          padding: '0.75rem 1rem', 
-                          background: 'var(--surface-hover)', 
-                          borderRadius: '1rem',
-                          border: '1px solid var(--border)'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <div style={{ 
-                            width: '36px', 
-                            height: '36px', 
-                            borderRadius: '50%', 
-                            background: isMasuk ? 'rgba(16, 185, 129, 0.1)' : 'rgba(249, 115, 22, 0.1)', 
-                            color: isMasuk ? 'var(--success)' : '#f97316', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center' 
-                          }}>
-                            {isMasuk ? <LogIn size={16} /> : <LogOut size={16} />}
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>
-                              Absen {item.tipe}
-                            </div>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '500', marginTop: '0.1rem' }}>
-                              {d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' })}
-                            </div>
+                  getDailyRecapsList().slice(0, 5).map((recap, idx) => (
+                    <div 
+                      key={idx} 
+                      style={{ 
+                        background: 'white', 
+                        borderRadius: '1.25rem', 
+                        padding: '1rem 1.25rem', 
+                        border: '1px solid var(--border)',
+                        boxShadow: '0 4px 15px rgba(0, 0, 0, 0.01)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.75rem'
+                      }}
+                    >
+                      {/* Header: Day, Date & Shift */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <span style={{ fontWeight: '800', fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                            {recap.hari}, {recap.date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '0.15rem', fontWeight: '500' }}>
+                            <Calendar size={11} style={{ color: 'var(--primary)' }} />
+                            Jadwal: {recap.jadwalMulai} - {recap.jadwalSelesai}
                           </div>
                         </div>
                         
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-primary)' }}>
-                            {d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '500', marginTop: '0.1rem' }}>
-                            Jarak: {item.jarak}m
+                        {/* Status Badge */}
+                        <span style={{ 
+                          fontSize: '0.68rem', 
+                          fontWeight: '700', 
+                          padding: '0.2rem 0.5rem', 
+                          borderRadius: '0.5rem',
+                          background: recap.status === 'Tepat Waktu' ? 'rgba(16, 185, 129, 0.1)' : 
+                                      recap.status.includes('Terlambat') ? 'rgba(245, 158, 11, 0.1)' : 
+                                      recap.status === 'Belum Pulang' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(107, 114, 128, 0.1)',
+                          color: recap.status === 'Tepat Waktu' ? 'var(--success)' : 
+                                 recap.status.includes('Terlambat') ? '#d97706' : 
+                                 recap.status === 'Belum Pulang' ? 'var(--info)' : 'var(--text-muted)'
+                        }}>
+                          {recap.status}
+                        </span>
+                      </div>
+
+                      <div style={{ height: '1px', background: 'var(--border)', opacity: 0.5 }}></div>
+
+                      {/* Body: Jam Masuk, Keluar & Durasi */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', textAlign: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Masuk</div>
+                          <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-primary)', marginTop: '0.2rem' }}>{recap.jamMasukStr}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Keluar</div>
+                          <div style={{ fontSize: '0.9rem', fontWeight: '800', color: recap.keterangan.includes('tidak') ? '#f97316' : 'var(--text-primary)', marginTop: '0.2rem' }}>
+                            {recap.jamKeluarStr}
+                            {recap.keterangan && <div style={{ fontSize: '0.65rem', color: '#f97316', fontWeight: '600', marginTop: '0.1rem' }}>{recap.keterangan}</div>}
                           </div>
                         </div>
+                        <div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Jam Kerja</div>
+                          <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--primary)', marginTop: '0.2rem' }}>{recap.durasi || '-'}</div>
+                        </div>
                       </div>
-                    );
-                  })
+
+                      {/* Footer: Lembur & Pulang Cepat */}
+                      {(recap.lembur || recap.pulangCepat) && (
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.1rem', flexWrap: 'wrap' }}>
+                          {recap.lembur && (
+                            <span style={{ 
+                              fontSize: '0.68rem', 
+                              fontWeight: '700', 
+                              padding: '0.2rem 0.5rem', 
+                              borderRadius: '0.5rem', 
+                              background: 'rgba(59, 130, 246, 0.1)', 
+                              color: 'var(--info)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              ⚡ Lembur: {recap.lembur}
+                            </span>
+                          )}
+                          {recap.pulangCepat && (
+                            <span style={{ 
+                              fontSize: '0.68rem', 
+                              fontWeight: '700', 
+                              padding: '0.2rem 0.5rem', 
+                              borderRadius: '0.5rem', 
+                              background: 'rgba(239, 68, 68, 0.08)', 
+                              color: 'var(--error)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              ⚠️ Pulang Cepat: {recap.pulangCepat}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))
                 )}
               </div>
             </div>
@@ -706,12 +1010,15 @@ export default function Attendance() {
           <div style={{ padding: '1.25rem' }}>
             <div className="profile-tab-card">
               <div className="profile-tab-header">
-                <label htmlFor="profile-avatar-upload" style={{ cursor: 'pointer', display: 'block', position: 'relative' }} title="Klik untuk ganti foto">
+                <label htmlFor="profile-avatar-upload" className="avatar-container" style={{ cursor: 'pointer', display: 'block' }} title="Klik untuk ganti foto">
                   <img 
                     src={avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.nama || '')}&backgroundColor=059669,10b981,047857&fontSize=42&fontFamily=Inter`} 
                     alt="Avatar" 
                     className="profile-tab-avatar"
                   />
+                  <div className="avatar-edit-badge profile">
+                    <Camera size={12} />
+                  </div>
                   <input 
                     id="profile-avatar-upload" 
                     type="file" 
@@ -768,7 +1075,7 @@ export default function Attendance() {
                 {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
               <div style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginTop: '0.5rem', fontWeight: '500' }}>
-                {currentTime.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
+                {currentTime.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }).replace('Minggu', 'Ahad')}
               </div>
             </div>
 
@@ -955,7 +1262,7 @@ export default function Attendance() {
                             Absen {item.tipe}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '500', marginTop: '0.15rem' }}>
-                            {d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+                            {d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }).replace('Minggu', 'Ahad')}
                           </div>
                         </div>
                       </div>
@@ -1178,6 +1485,79 @@ export default function Attendance() {
             <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>{underDevFeature.title}</h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: '1.6', marginBottom: '1.5rem' }}>{underDevFeature.message}</p>
             <button className="btn btn-primary w-full" onClick={() => setUnderDevFeature(null)}>Mengerti</button>
+          </div>
+        </div>
+      )}
+
+      {/* Missed Check-Out Resolution Modal */}
+      {unfinishedModalSession && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card text-center" style={{ width: '90%', maxWidth: '360px', padding: '1.75rem', animation: 'scaleIn 0.3s ease-out' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+              <Clock size={32} />
+            </div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Selesaikan Absensi</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: '1.5', marginBottom: '1.25rem' }}>
+              Anda belum melakukan absen pulang pada hari <strong>{unfinishedModalSession.hari}, {new Date(unfinishedModalSession.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.
+              <br /><br />
+              Sistem akan mencatat waktu pulang Anda secara otomatis pada jam pulang jadwal normal <strong>({unfinishedModalSession.jamSelesaiStr})</strong> dengan keterangan <strong>(tidak absen pulang)</strong>.
+            </p>
+            
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button 
+                className="btn btn-secondary flex-1" 
+                onClick={() => setUnfinishedModalSession(null)}
+                disabled={loading}
+                style={{ padding: '0.75rem', borderRadius: '0.75rem', fontSize: '0.9rem', fontWeight: '700' }}
+              >
+                Batal
+              </button>
+              <button 
+                className="btn flex-1" 
+                disabled={loading}
+                onClick={async () => {
+                  setLoading(true);
+                  setErrorMsg('');
+                  setSuccessMsg('');
+                  try {
+                    const targetDate = new Date(unfinishedModalSession.date);
+                    const [h, m] = unfinishedModalSession.jamSelesaiStr.split(':').map(Number);
+                    targetDate.setHours(h || 20, m || 30, 0, 0);
+
+                    await callApi({
+                      action: 'attend',
+                      nama: user.nama,
+                      nowa: user.nowa,
+                      tipe: 'Keluar',
+                      jarak: 0,
+                      koordinat: '-',
+                      keterangan: '(tidak absen pulang)',
+                      timestamp: targetDate.toISOString()
+                    });
+
+                    setSuccessMsg(`Berhasil menyelesaikan absensi tanggal ${targetDate.toLocaleDateString('id-ID')}!`);
+                    setUnfinishedModalSession(null);
+                    fetchHistory();
+                  } catch (err) {
+                    setErrorMsg(err.message || 'Gagal menyelesaikan absensi');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                style={{ 
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.75rem', 
+                  borderRadius: '0.75rem', 
+                  fontSize: '0.9rem', 
+                  fontWeight: '700',
+                  boxShadow: '0 4px 12px rgba(217, 119, 6, 0.2)'
+                }}
+              >
+                {loading ? <div className="spinner spinner-sm" style={{ borderColor: 'white', margin: '0 auto' }}></div> : 'Ya, Selesaikan'}
+              </button>
+            </div>
           </div>
         </div>
       )}

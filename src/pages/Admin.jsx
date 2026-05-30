@@ -247,7 +247,7 @@ export default function Admin() {
       }
     });
 
-    const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const HARI = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
     const rows = [];
     Object.values(groups).forEach(g => {
@@ -381,7 +381,7 @@ export default function Admin() {
       { id: 4, name: 'Kamis' },
       { id: 5, name: 'Jumat' },
       { id: 6, name: 'Sabtu' },
-      { id: 0, name: 'Minggu' }
+      { id: 0, name: 'Ahad' }
     ];
 
     const handleToggle = (dayId) => {

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
@@ -16,6 +17,37 @@ const ProtectedRoute = ({ children, requireAdmin }) => {
 };
 
 function App() {
+  useEffect(() => {
+    const enterFullscreenOnGesture = () => {
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile && !document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+        const elem = document.documentElement;
+        try {
+          if (elem.requestFullscreen) {
+            elem.requestFullscreen().catch(() => {});
+          } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
+          } else if (elem.msRequestFullscreen) {
+            elem.msRequestFullscreen();
+          }
+        } catch (e) {
+          console.error('Failed to auto-enter fullscreen:', e);
+        }
+      }
+      // Remove event listeners after first interaction
+      document.removeEventListener('click', enterFullscreenOnGesture);
+      document.removeEventListener('touchstart', enterFullscreenOnGesture);
+    };
+
+    document.addEventListener('click', enterFullscreenOnGesture);
+    document.addEventListener('touchstart', enterFullscreenOnGesture);
+
+    return () => {
+      document.removeEventListener('click', enterFullscreenOnGesture);
+      document.removeEventListener('touchstart', enterFullscreenOnGesture);
+    };
+  }, []);
+
   return (
     <Router>
       <div className="app-container">

@@ -978,6 +978,11 @@ tr:hover td {
   }
 }
 
+/* Responsive utility helpers */
+.sm-visible {
+  display: none !important;
+}
+
 /* Full-screen & Notched Responsive Adjustments */
 @media (max-width: 768px) {
   .stat-cards {
@@ -989,10 +994,10 @@ tr:hover td {
     border-left-width: 3px !important;
   }
   .sm-visible {
-    display: none !important;
+    display: inline-flex !important;
   }
   .sm-hidden {
-    display: inline-flex !important;
+    display: none !important;
   }
 }
 
@@ -1514,3 +1519,33 @@ tr:hover td {
   font-weight: 600;
 }
 
+/* Avatar Container and Edit Indicator */
+.avatar-container {
+  position: relative;
+  display: inline-block;
+}
+
+.avatar-edit-badge {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  background: var(--primary);
+  color: white;
+  border-radius: 50%;
+  border: 1.5px solid white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+  pointer-events: none; /* Make sure click goes through to label */
+}
+
+.avatar-edit-badge.profile {
+  width: 24px;
+  height: 24px;
+  bottom: 4px;
+  right: 4px;
+  border: 2px solid white;
+}
