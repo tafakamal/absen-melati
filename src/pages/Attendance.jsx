@@ -399,7 +399,7 @@ export default function Attendance() {
 
   return (
     <>
-      {activeTab !== 'home' && activeTab !== 'profil' && (
+      {activeTab === 'riwayat' && (
         <div className="page-header" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
           <div className="page-header-left" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <img 
@@ -617,26 +617,12 @@ export default function Attendance() {
                 {/* Kehadiran */}
                 <div 
                   className="home-service-item"
-                  onClick={() => setActiveTab('absen')}
+                  onClick={() => setActiveTab('riwayat')}
                 >
                   <div className="home-service-icon-circle" style={{ background: '#ecfdf5', color: '#059669' }}>
                     <Clock size={20} />
                   </div>
                   <span className="home-service-label">Kehadiran</span>
-                </div>
-
-                {/* Izin & Cuti */}
-                <div 
-                  className="home-service-item"
-                  onClick={() => setUnderDevFeature({
-                    title: "Izin & Cuti",
-                    message: "Fitur pengajuan Izin & Cuti sedang dalam tahap integrasi database Google Sheets."
-                  })}
-                >
-                  <div className="home-service-icon-circle" style={{ background: '#eff6ff', color: '#2563eb' }}>
-                    <Plane size={20} />
-                  </div>
-                  <span className="home-service-label">Izin & Cuti</span>
                 </div>
 
                 {/* Gaji */}
@@ -651,34 +637,6 @@ export default function Attendance() {
                     <Wallet size={20} />
                   </div>
                   <span className="home-service-label">Gaji</span>
-                </div>
-
-                {/* Approval */}
-                <div 
-                  className="home-service-item"
-                  onClick={() => setUnderDevFeature({
-                    title: "Persetujuan (Approval)",
-                    message: "Fitur persetujuan lembur dan cuti khusus untuk koordinator atau admin."
-                  })}
-                >
-                  <div className="home-service-icon-circle" style={{ background: '#eef2ff', color: '#4f46e5' }}>
-                    <CheckSquare size={20} />
-                  </div>
-                  <span className="home-service-label">Approval</span>
-                </div>
-
-                {/* Tim */}
-                <div 
-                  className="home-service-item"
-                  onClick={() => setUnderDevFeature({
-                    title: "Kontak Tim",
-                    message: "Direktori kontak dan status kehadiran rekan kerja satu tim absensi."
-                  })}
-                >
-                  <div className="home-service-icon-circle" style={{ background: '#fdf2f8', color: '#db2777' }}>
-                    <Users size={20} />
-                  </div>
-                  <span className="home-service-label">Tim</span>
                 </div>
 
                 {/* Perusahaan */}
