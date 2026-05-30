@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
-import { Camera, MapPin, LogOut, CheckCircle, RefreshCw, Clock, History, Calendar, X, ArrowLeft, Maximize2, Minimize2, Bell, LogIn, BarChart3 } from 'lucide-react';
+import { Camera, MapPin, LogOut, CheckCircle, RefreshCw, Clock, History, Calendar, X, ArrowLeft, Maximize2, Minimize2, Bell, LogIn, BarChart3, Plane, Wallet, CheckSquare, Users, Building2, Package, Home, Send, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { callApi } from '../api';
 
@@ -59,9 +59,10 @@ export default function Attendance() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // History states
-  const [activeTab, setActiveTab] = useState('riwayat');
+  const [activeTab, setActiveTab] = useState('home');
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [underDevFeature, setUnderDevFeature] = useState(null);
 
   // Camera state
   const [takingPhotoFor, setTakingPhotoFor] = useState(null); // 'Masuk' | 'Keluar' | null
@@ -398,61 +399,380 @@ export default function Attendance() {
 
   return (
     <>
-      <div className="page-header" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-        <div className="page-header-left" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <img 
-            src={clinicConfig?.logo ? (clinicConfig.logo.includes('/d/') ? `https://drive.google.com/thumbnail?id=${clinicConfig.logo.split('/d/')[1].split('/')[0]}&sz=w200` : clinicConfig.logo) : '/logo2.png'} 
-            alt="Logo" 
-            style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '8px' }} 
-          />
-          <div>
-            <div className="page-title">Melati Dental Care</div>
-            <div className="page-subtitle">Assalamu'alaikum, <strong style={{ color: 'var(--text-primary)' }}>{user?.nama}</strong></div>
+      {activeTab !== 'home' && activeTab !== 'profil' && (
+        <div className="page-header" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+          <div className="page-header-left" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <img 
+              src={clinicConfig?.logo ? (clinicConfig.logo.includes('/d/') ? `https://drive.google.com/thumbnail?id=${clinicConfig.logo.split('/d/')[1].split('/')[0]}&sz=w200` : clinicConfig.logo) : '/logo2.png'} 
+              alt="Logo" 
+              style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '8px' }} 
+            />
+            <div>
+              <div className="page-title">Melati Dental Care</div>
+              <div className="page-subtitle">Assalamu'alaikum, <strong style={{ color: 'var(--text-primary)' }}>{user?.nama}</strong></div>
+            </div>
+          </div>
+          <div className="page-header-right" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button 
+              className="btn btn-ghost btn-sm" 
+              onClick={toggleFullscreen} 
+              title={isFullscreen ? "Keluar Layar Penuh" : "Layar Penuh"}
+              style={{ padding: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)' }}
+            >
+              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
+            
+            <button 
+              className="btn btn-ghost btn-sm notif-badge-container" 
+              onClick={() => {
+                markNotificationsAsRead();
+                setShowNotifModal(true);
+              }}
+              title="Notifikasi"
+              style={{ padding: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', background: 'var(--surface)' }}
+            >
+              <Bell size={16} />
+              {unreadNotifCount > 0 && <span className="notif-badge">{unreadNotifCount}</span>}
+            </button>
+
+            {user?.role === 'admin' && (
+              <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin')} title="Dashboard Admin" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <BarChart3 size={14} />
+                <span className="sm-visible">Dashboard</span>
+              </button>
+            )}
+            
+            <button className="btn btn-danger btn-sm" onClick={handleLogout} title="Keluar" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <LogOut size={14} />
+              <span className="sm-visible">Keluar</span>
+            </button>
           </div>
         </div>
-        <div className="page-header-right" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <button 
-            className="btn btn-ghost btn-sm" 
-            onClick={toggleFullscreen} 
-            title={isFullscreen ? "Keluar Layar Penuh" : "Layar Penuh"}
-            style={{ padding: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)' }}
-          >
-            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-          </button>
-          
-          <button 
-            className="btn btn-ghost btn-sm notif-badge-container" 
-            onClick={() => {
-              markNotificationsAsRead();
-              setShowNotifModal(true);
-            }}
-            title="Notifikasi"
-            style={{ padding: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', background: 'var(--surface)' }}
-          >
-            <Bell size={16} />
-            {unreadNotifCount > 0 && <span className="notif-badge">{unreadNotifCount}</span>}
-          </button>
-
-          {user?.role === 'admin' && (
-            <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin')} title="Dashboard Admin" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <BarChart3 size={14} />
-              <span className="sm-visible">Dashboard</span>
-            </button>
-          )}
-          
-          <button className="btn btn-danger btn-sm" onClick={handleLogout} title="Keluar" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <LogOut size={14} />
-            <span className="sm-visible">Keluar</span>
-          </button>
-        </div>
-      </div>
+      )}
 
       <div className="main-content" style={{ paddingBottom: '90px' }}>
-        {errorMsg && !takingPhotoFor && <div className="alert alert-error mb-4">{errorMsg}</div>}
-        {successMsg && !takingPhotoFor && <div className="alert alert-success mb-4"><CheckCircle size={18} /> {successMsg}</div>}
+        {errorMsg && !takingPhotoFor && <div className="alert alert-error mb-4" style={{ margin: '1rem 1.25rem 0' }}>{errorMsg}</div>}
+        {successMsg && !takingPhotoFor && <div className="alert alert-success mb-4" style={{ margin: '1rem 1.25rem 0' }}><CheckCircle size={18} /> {successMsg}</div>}
 
-        {activeTab === 'absen' ? (
+        {activeTab === 'home' ? (
           <div>
+            {/* Header Area */}
+            <div className="home-header-bg">
+              <div className="home-profile-section">
+                <div className="home-profile-left">
+                  <img 
+                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.nama || '')}&backgroundColor=059669,10b981,047857&fontSize=42&fontFamily=Inter`} 
+                    alt="Avatar" 
+                    className="home-avatar"
+                  />
+                  <div>
+                    <div className="home-greeting">Assalamu'alaikum,</div>
+                    <div className="home-user-name">{user?.nama}</div>
+                  </div>
+                </div>
+                <div className="home-profile-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {user?.role === 'admin' && (
+                    <button 
+                      className="home-bell-btn" 
+                      onClick={() => navigate('/admin')} 
+                      title="Dashboard Admin"
+                    >
+                      <BarChart3 size={20} />
+                    </button>
+                  )}
+                  <button 
+                    className="home-bell-btn" 
+                    onClick={() => {
+                      markNotificationsAsRead();
+                      setShowNotifModal(true);
+                    }}
+                    title="Notifikasi"
+                  >
+                    <Bell size={20} />
+                    {unreadNotifCount > 0 && <span className="home-bell-badge" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Overlapping Presensi Card */}
+            <div className="home-presensi-card">
+              <div className="home-presensi-flex">
+                <div className="home-presensi-left">
+                  <div className="home-day-label">
+                    {currentTime.toLocaleDateString('id-ID', { weekday: 'long' })}
+                  </div>
+                  <div className="home-date-label">
+                    {currentTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                  
+                  <div className="home-type-label">
+                    {hasAbsenMasukToday ? 'Presensi Pulang' : 'Presensi Masuk'}
+                  </div>
+                  <div className="home-time-label">
+                    {(() => {
+                      const todayAbsenMasuk = history.find(h => {
+                        const d = new Date(h.timestamp);
+                        const today = new Date();
+                        return d.getDate() === today.getDate() &&
+                               d.getMonth() === today.getMonth() &&
+                               d.getFullYear() === today.getFullYear() &&
+                               h.tipe === 'Masuk';
+                      });
+                      if (todayAbsenMasuk) {
+                        const checkTime = new Date(todayAbsenMasuk.timestamp);
+                        return checkTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+                      }
+                      return getJamKerja().jm;
+                    })()}
+                  </div>
+                </div>
+                
+                <div className="home-presensi-divider"></div>
+                
+                <div className="home-presensi-right">
+                  {(() => {
+                    if (!hasAbsenMasukToday) {
+                      return (
+                        <button 
+                          className={`home-quick-btn masuk`}
+                          onClick={() => {
+                            if (disableMasuk) {
+                              setUnderDevFeature({
+                                title: "Presensi Masuk Terkunci",
+                                message: locError || `Anda berada di luar jangkauan kantor atau di luar jam kerja (${getJamKerja().jm} - ${getJamKerja().js}).`
+                              });
+                            } else {
+                              setTakingPhotoFor('Masuk');
+                            }
+                          }}
+                        >
+                          <LogIn size={18} />
+                          <span>Masuk</span>
+                        </button>
+                      );
+                    } else if (!hasAbsenKeluarToday && allowedKeluar) {
+                      return (
+                        <button 
+                          className="home-quick-btn keluar"
+                          onClick={() => {
+                            if (disablePulang) {
+                              setUnderDevFeature({
+                                title: "Presensi Pulang Terkunci",
+                                message: locError || "Anda berada di luar jangkauan kantor."
+                              });
+                            } else {
+                              setTakingPhotoFor('Keluar');
+                            }
+                          }}
+                        >
+                          <LogOut size={18} />
+                          <span>Keluar</span>
+                        </button>
+                      );
+                    } else {
+                      return (
+                        <button className="home-quick-btn selesai" disabled>
+                          <CheckCircle size={18} />
+                          <span>Selesai</span>
+                        </button>
+                      );
+                    }
+                  })()}
+                </div>
+              </div>
+              
+              <div className="home-status-footer">
+                {(() => {
+                  const todayAbsenMasuk = history.find(h => {
+                    const d = new Date(h.timestamp);
+                    const today = new Date();
+                    return d.getDate() === today.getDate() &&
+                           d.getMonth() === today.getMonth() &&
+                           d.getFullYear() === today.getFullYear() &&
+                           h.tipe === 'Masuk';
+                  });
+                  if (todayAbsenMasuk) {
+                    const now = new Date();
+                    const checkTime = new Date(todayAbsenMasuk.timestamp);
+                    const diffMs = now - checkTime;
+                    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+                    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                    
+                    let durationStr = '';
+                    if (diffHrs > 0) durationStr += `${diffHrs} jam `;
+                    durationStr += `${diffMins} menit`;
+                    
+                    return `Presensi masuk dilakukan ${durationStr} yang lalu`;
+                  }
+                  
+                  return "Belum melakukan presensi masuk hari ini.";
+                })()}
+              </div>
+            </div>
+
+            {/* Menu Grid */}
+            <div className="home-services-card">
+              <div className="home-services-grid">
+                {/* Kehadiran */}
+                <div 
+                  className="home-service-item"
+                  onClick={() => setActiveTab('absen')}
+                >
+                  <div className="home-service-icon-circle" style={{ background: '#ecfdf5', color: '#059669' }}>
+                    <Clock size={20} />
+                  </div>
+                  <span className="home-service-label">Kehadiran</span>
+                </div>
+
+                {/* Izin & Cuti */}
+                <div 
+                  className="home-service-item"
+                  onClick={() => setUnderDevFeature({
+                    title: "Izin & Cuti",
+                    message: "Fitur pengajuan Izin & Cuti sedang dalam tahap integrasi database Google Sheets."
+                  })}
+                >
+                  <div className="home-service-icon-circle" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                    <Plane size={20} />
+                  </div>
+                  <span className="home-service-label">Izin & Cuti</span>
+                </div>
+
+                {/* Gaji */}
+                <div 
+                  className="home-service-item"
+                  onClick={() => setUnderDevFeature({
+                    title: "Slip Gaji",
+                    message: "Fitur rekapitulasi penggajian digital sedang dalam tahap pengembangan sistem keamanan."
+                  })}
+                >
+                  <div className="home-service-icon-circle" style={{ background: '#fff7ed', color: '#ea580c' }}>
+                    <Wallet size={20} />
+                  </div>
+                  <span className="home-service-label">Gaji</span>
+                </div>
+
+                {/* Approval */}
+                <div 
+                  className="home-service-item"
+                  onClick={() => setUnderDevFeature({
+                    title: "Persetujuan (Approval)",
+                    message: "Fitur persetujuan lembur dan cuti khusus untuk koordinator atau admin."
+                  })}
+                >
+                  <div className="home-service-icon-circle" style={{ background: '#eef2ff', color: '#4f46e5' }}>
+                    <CheckSquare size={20} />
+                  </div>
+                  <span className="home-service-label">Approval</span>
+                </div>
+
+                {/* Tim */}
+                <div 
+                  className="home-service-item"
+                  onClick={() => setUnderDevFeature({
+                    title: "Kontak Tim",
+                    message: "Direktori kontak dan status kehadiran rekan kerja satu tim absensi."
+                  })}
+                >
+                  <div className="home-service-icon-circle" style={{ background: '#fdf2f8', color: '#db2777' }}>
+                    <Users size={20} />
+                  </div>
+                  <span className="home-service-label">Tim</span>
+                </div>
+
+                {/* Perusahaan */}
+                <div 
+                  className="home-service-item"
+                  onClick={() => setUnderDevFeature({
+                    title: "Profil Klinik",
+                    message: "Informasi operasional, SOP, dan kebijakan internal Melati Dental Care."
+                  })}
+                >
+                  <div className="home-service-icon-circle" style={{ background: '#f0fdfa', color: '#0d9488' }}>
+                    <Building2 size={20} />
+                  </div>
+                  <span className="home-service-label">Perusahaan</span>
+                </div>
+
+                {/* Kalender */}
+                <div 
+                  className="home-service-item"
+                  onClick={() => setActiveTab('riwayat')}
+                >
+                  <div className="home-service-icon-circle" style={{ background: '#fef2f2', color: '#dc2626' }}>
+                    <Calendar size={20} />
+                  </div>
+                  <span className="home-service-label">Kalender</span>
+                </div>
+
+                {/* Inbox */}
+                <div 
+                  className="home-service-item"
+                  onClick={() => setUnderDevFeature({
+                    title: "Kotak Masuk (Inbox)",
+                    message: "Fitur komunikasi internal dua arah karyawan dan HRD/Admin."
+                  })}
+                >
+                  <div className="home-service-icon-circle" style={{ background: '#faf5ff', color: '#7c3aed' }}>
+                    <Package size={20} />
+                  </div>
+                  <span className="home-service-label">Inbox</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'profil' ? (
+          <div style={{ padding: '1.25rem' }}>
+            <div className="profile-tab-card">
+              <div className="profile-tab-header">
+                <img 
+                  src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.nama || '')}&backgroundColor=059669,10b981,047857&fontSize=42&fontFamily=Inter`} 
+                  alt="Avatar" 
+                  className="profile-tab-avatar"
+                />
+                <div className="profile-tab-name">{user?.nama}</div>
+                <span className="profile-tab-role">{user?.role}</span>
+              </div>
+              
+              <div className="profile-tab-info-row">
+                <span className="profile-tab-info-label">Nomor WhatsApp</span>
+                <span className="profile-tab-info-value">{user?.nowa}</span>
+              </div>
+              
+              <div className="profile-tab-info-row">
+                <span className="profile-tab-info-label">Jadwal Kerja</span>
+                <span className="profile-tab-info-value">
+                  {(() => {
+                    const { jm, js } = getJamKerja();
+                    return `${jm} - ${js}`;
+                  })()}
+                </span>
+              </div>
+
+              <div className="profile-tab-info-row">
+                <span className="profile-tab-info-label">Toleransi</span>
+                <span className="profile-tab-info-value">{user?.toleransi || 15} Menit</span>
+              </div>
+              
+              <div className="profile-tab-info-row" style={{ borderBottom: 'none' }}>
+                <span className="profile-tab-info-label">Status</span>
+                <span className="profile-tab-info-value" style={{ color: 'var(--primary)' }}>
+                  AKTIF
+                </span>
+              </div>
+            </div>
+            
+            <button 
+              className="btn btn-danger w-full justify-center" 
+              onClick={handleLogout}
+              style={{ padding: '0.9rem', borderRadius: '1rem', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem', fontWeight: 'bold' }}
+            >
+              <LogOut size={16} /> Keluar dari Aplikasi
+            </button>
+          </div>
+        ) : activeTab === 'absen' ? (
+          <div style={{ padding: '0 1.25rem' }}>
             {/* Jam Digital */}
             <div className="text-center mb-6 mt-4">
               <div style={{ fontSize: '3.5rem', fontWeight: '800', lineHeight: '1', color: 'var(--text-primary)' }}>
@@ -467,7 +787,7 @@ export default function Attendance() {
             <div className="card glass mb-6 text-center" style={{ padding: '2rem 1.5rem', borderRadius: '1.5rem', border: '1px solid rgba(255,255,255,0.1)' }}>
               {locError ? (
                 <>
-                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
                     <MapPin size={32} />
                   </div>
                   <h3 style={{ color: 'var(--error)', marginBottom: '0.5rem' }}>Lokasi Tidak Valid</h3>
@@ -481,7 +801,7 @@ export default function Attendance() {
                 </div>
               ) : isLocationValid ? (
                 <>
-                  <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'rgba(34, 197, 94, 0.15)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                  <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'rgba(34, 197, 94, 0.15)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
                     <CheckCircle size={36} />
                   </div>
                   <h3 style={{ color: 'var(--success)', fontSize: '1.3rem', marginBottom: '0.5rem' }}>Lokasi Valid</h3>
@@ -492,7 +812,7 @@ export default function Attendance() {
                     fontSize: '0.95rem', 
                     fontWeight: '600', 
                     color: isOffDay ? 'var(--text-muted)' : 'var(--primary)', 
-                    background: isOffDay ? 'var(--surface-hover)' : 'rgba(59, 130, 246, 0.1)', 
+                    background: isOffDay ? 'var(--surface-hover)' : 'rgba(5, 150, 105, 0.1)', 
                     padding: '0.75rem', 
                     borderRadius: '0.5rem', 
                     display: 'inline-block' 
@@ -511,12 +831,12 @@ export default function Attendance() {
                 </>
               ) : (
                 <>
-                  <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--error)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                  <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--error)', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
                     <MapPin size={36} />
                   </div>
                   <h3 style={{ color: 'var(--error)', fontSize: '1.3rem', marginBottom: '0.5rem' }}>Di Luar Jangkauan</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1rem' }}>
-                    Anda berada {distance}m dari klinik. Maksimal jarak adalah {clinicConfig.max_dist}m.
+                    Anda berada {distance}m dari klinik. Maksimal jarak adalah {clinicConfig?.max_dist || 100}m.
                   </p>
                   <button className="btn btn-secondary mt-4 mx-auto btn-sm" onClick={getLocation}><RefreshCw size={14} /> Coba Lagi</button>
                 </>
@@ -537,7 +857,7 @@ export default function Attendance() {
                 onClick={() => setTakingPhotoFor('Masuk')}
                 disabled={disableMasuk}
               >
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
                   <LogIn size={24} />
                 </div>
                 <span style={{ fontSize: '1.2rem', fontWeight: '700' }}>
@@ -558,7 +878,7 @@ export default function Attendance() {
                   onClick={() => setTakingPhotoFor('Keluar')}
                   disabled={disablePulang}
                 >
-                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
                     <LogOut size={24} />
                   </div>
                   <span style={{ fontSize: '1.2rem', fontWeight: '700' }}>
@@ -569,7 +889,7 @@ export default function Attendance() {
             </div>
           </div>
         ) : (
-          <div className="card glass">
+          <div className="card glass" style={{ margin: '0 1.25rem' }}>
             <h3 className="mb-4 flex items-center gap-2"><History size={18} /> Riwayat Absensi Saya</h3>
             
             <div className="filter-bar mb-4">
@@ -634,34 +954,49 @@ export default function Attendance() {
         )}
       </div>
 
-      {/* Bottom Navigation */}
-      <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0,
-        background: 'var(--surface)', borderTop: '1px solid var(--border)',
-        display: 'flex', zIndex: 90, paddingBottom: 'env(safe-area-inset-bottom)',
-        boxShadow: '0 -4px 20px rgba(0,0,0,0.05)'
-      }}>
+      {/* Bottom Navigation Redesign */}
+      <div className="home-bottom-navbar">
         <button 
-          style={{ 
-            flex: 1, padding: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', 
-            color: activeTab === 'riwayat' ? 'var(--primary)' : 'var(--text-muted)', 
-            background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.2s'
-          }}
+          className={`home-nav-item ${activeTab === 'home' ? 'active' : ''}`}
+          onClick={() => setActiveTab('home')}
+        >
+          <Home size={20} />
+          <span>Home</span>
+        </button>
+        
+        <button 
+          className={`home-nav-item ${activeTab === 'riwayat' ? 'active' : ''}`}
           onClick={() => setActiveTab('riwayat')}
         >
-          <History size={24} style={{ transform: activeTab === 'riwayat' ? 'scale(1.1)' : 'scale(1)' }} />
-          <span style={{ fontSize: '0.75rem', fontWeight: activeTab === 'riwayat' ? '700' : '500' }}>Riwayat</span>
+          <Send size={20} style={{ transform: 'rotate(-30deg)' }} />
+          <span>Time Line</span>
         </button>
-        <button 
-          style={{ 
-            flex: 1, padding: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', 
-            color: activeTab === 'absen' ? 'var(--primary)' : 'var(--text-muted)', 
-            background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.2s'
-          }}
+        
+        <div 
+          className="home-nav-center-btn"
           onClick={() => setActiveTab('absen')}
+          title="Absen Sekarang"
         >
-          <Camera size={24} style={{ transform: activeTab === 'absen' ? 'scale(1.1)' : 'scale(1)' }} />
-          <span style={{ fontSize: '0.75rem', fontWeight: activeTab === 'absen' ? '700' : '500' }}>Absen</span>
+          <Clock size={24} />
+        </div>
+        
+        <button 
+          className="home-nav-item"
+          onClick={() => setUnderDevFeature({
+            title: "Portal Klinik",
+            message: "Fitur portal internal perusahaan dan info operasional sedang dalam tahap integrasi."
+          })}
+        >
+          <Building2 size={20} />
+          <span>Klinik</span>
+        </button>
+        
+        <button 
+          className={`home-nav-item ${activeTab === 'profil' ? 'active' : ''}`}
+          onClick={() => setActiveTab('profil')}
+        >
+          <User size={20} />
+          <span>Profil</span>
         </button>
       </div>
 
@@ -804,6 +1139,20 @@ export default function Attendance() {
           <button className="notification-toast-close" onClick={() => setActiveToastNotif(null)}>
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {/* Feature Under Development Modal */}
+      {underDevFeature && (
+        <div className="modal-overlay" onClick={() => setUnderDevFeature(null)}>
+          <div className="modal text-center" onClick={e => e.stopPropagation()} style={{ maxWidth: '360px', padding: '2rem' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(5, 150, 105, 0.1)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+              <Clock size={32} />
+            </div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>{underDevFeature.title}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: '1.6', marginBottom: '1.5rem' }}>{underDevFeature.message}</p>
+            <button className="btn btn-primary w-full" onClick={() => setUnderDevFeature(null)}>Mengerti</button>
+          </div>
         </div>
       )}
     </>
