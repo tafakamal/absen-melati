@@ -214,14 +214,32 @@ export default function Attendance() {
   const isLocationValid = isBebasLokasi || (location && distance !== null && distance <= clinicConfig?.max_dist);
 
   const getJamKerja = () => {
-    const isSabtu = currentTime.getDay() === 6;
-    const jm = isSabtu ? (user.jamMulaiSabtu || '10:00') : (user.jamMulai || '17:00');
-    const js = isSabtu ? (user.jamSelesaiSabtu || '17:00') : (user.jamSelesai || '20:30');
-    return { jm: formatJamKerja(jm, jm), js: formatJamKerja(js, js) };
+    const dayOfWeek = currentTime.getDay();
+    if (user && user.jadwal && user.jadwal[dayOfWeek]) {
+      const dayConfig = user.jadwal[dayOfWeek];
+      if (dayConfig.active) {
+        return { jm: dayConfig.start, js: dayConfig.end, isActive: true };
+      } else {
+        return { jm: '', js: '', isActive: false };
+      }
+    }
+    
+    // Fallback to legacy
+    const isSabtu = dayOfWeek === 6;
+    const isMinggu = dayOfWeek === 0;
+    if (isMinggu) {
+      return { jm: '', js: '', isActive: false };
+    }
+    const jm = isSabtu ? (user?.jamMulaiSabtu || '10:00') : (user?.jamMulai || '17:00');
+    const js = isSabtu ? (user?.jamSelesaiSabtu || '17:00') : (user?.jamSelesai || '20:30');
+    return { jm: formatJamKerja(jm, jm), js: formatJamKerja(js, js), isActive: true };
   };
 
   const checkTimeBounds = () => {
-    const { jm, js } = getJamKerja();
+    const { jm, js, isActive } = getJamKerja();
+    if (!isActive) {
+      return { allowedMasuk: false, allowedKeluar: false, isOffDay: true };
+    }
     const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes();
     
     const parseTimeStr = (ts) => {
@@ -238,13 +256,13 @@ export default function Attendance() {
     const allowedMasuk = currentMins >= (minsMulai - batasAwal) && currentMins <= minsSelesai;
     const allowedKeluar = currentMins >= minsMulai && currentMins <= (minsSelesai + batasAkhir);
 
-    return { allowedMasuk, allowedKeluar };
+    return { allowedMasuk, allowedKeluar, isOffDay: false };
   };
 
-  const { allowedMasuk, allowedKeluar } = checkTimeBounds();
+  const { allowedMasuk, allowedKeluar, isOffDay } = checkTimeBounds();
 
-  const disableMasuk = !isLocationValid || hasAbsenMasukToday || !allowedMasuk;
-  const disablePulang = !isLocationValid || hasAbsenKeluarToday || !hasAbsenMasukToday || !allowedKeluar;
+  const disableMasuk = !isLocationValid || hasAbsenMasukToday || !allowedMasuk || isOffDay;
+  const disablePulang = !isLocationValid || hasAbsenKeluarToday || !hasAbsenMasukToday || !allowedKeluar || isOffDay;
 
 
   if (fetchingSettings) {
@@ -323,8 +341,22 @@ export default function Attendance() {
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1rem' }}>
                     Anda berada dalam radius kantor ({distance}m).
                   </p>
-                  <div style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--primary)', background: 'rgba(59, 130, 246, 0.1)', padding: '0.75rem', borderRadius: '0.5rem', display: 'inline-block' }}>
-                    Jadwal hari ini ({currentTime.getDay() === 6 ? `${formatJamKerja(user.jamMulaiSabtu, '10:00')} - ${formatJamKerja(user.jamSelesaiSabtu, '17:00')}` : `${formatJamKerja(user.jamMulai, '17:00')} - ${formatJamKerja(user.jamSelesai, '20:30')}`})
+                  <div style={{ 
+                    fontSize: '0.95rem', 
+                    fontWeight: '600', 
+                    color: isOffDay ? 'var(--text-muted)' : 'var(--primary)', 
+                    background: isOffDay ? 'var(--surface-hover)' : 'rgba(59, 130, 246, 0.1)', 
+                    padding: '0.75rem', 
+                    borderRadius: '0.5rem', 
+                    display: 'inline-block' 
+                  }}>
+                    {(() => {
+                      const { jm, js, isActive } = getJamKerja();
+                      if (!isActive) {
+                        return 'Hari Ini Libur (Tidak ada jadwal)';
+                      }
+                      return `Jadwal hari ini (${jm} - ${js})`;
+                    })()}
                   </div>
                   <div className="mt-4">
                     <button className="btn btn-ghost mx-auto btn-sm" style={{ color: 'var(--text-muted)' }} onClick={getLocation}><RefreshCw size={14} /> Muat Ulang Lokasi</button>

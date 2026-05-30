@@ -49,6 +49,16 @@ function dateToKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+const INITIAL_SCHEDULE = {
+  1: { active: true, start: '17:00', end: '20:30' },
+  2: { active: true, start: '17:00', end: '20:30' },
+  3: { active: true, start: '17:00', end: '20:30' },
+  4: { active: true, start: '17:00', end: '20:30' },
+  5: { active: true, start: '17:00', end: '20:30' },
+  6: { active: true, start: '10:00', end: '17:00' },
+  0: { active: false, start: '08:00', end: '17:00' }
+};
+
 export default function Admin() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -77,23 +87,17 @@ export default function Admin() {
   const [newNama, setNewNama] = useState('');
   const [newNowa, setNewNowa] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [newJamMulai, setNewJamMulai] = useState('17:00');
-  const [newJamSelesai, setNewJamSelesai] = useState('20:30');
-  const [newJamMulaiSabtu, setNewJamMulaiSabtu] = useState('10:00');
-  const [newJamSelesaiSabtu, setNewJamSelesaiSabtu] = useState('17:00');
   const [newToleransi, setNewToleransi] = useState(15);
   const [newStatus, setNewStatus] = useState('pegawai');
   const [newRole, setNewRole] = useState('user');
   const [newBatasAwalMasuk, setNewBatasAwalMasuk] = useState(60);
   const [newBatasAkhirPulang, setNewBatasAkhirPulang] = useState(240);
   const [addingUser, setAddingUser] = useState(false);
+  const [newJadwal, setNewJadwal] = useState(INITIAL_SCHEDULE);
 
   // Edit user modal
   const [editingUser, setEditingUser] = useState(null);
-  const [editJamMulai, setEditJamMulai] = useState('');
-  const [editJamSelesai, setEditJamSelesai] = useState('');
-  const [editJamMulaiSabtu, setEditJamMulaiSabtu] = useState('');
-  const [editJamSelesaiSabtu, setEditJamSelesaiSabtu] = useState('');
+  const [editJadwal, setEditJadwal] = useState(INITIAL_SCHEDULE);
   const [editToleransi, setEditToleransi] = useState('');
   const [editStatus, setEditStatus] = useState('');
   const [editRole, setEditRole] = useState('');
@@ -207,26 +211,44 @@ export default function Admin() {
       const isMinggu = dayOfWeek === 0;
 
       // Pilih jadwal sesuai hari
-      const jamMulai = isSabtu
-        ? parseTime(userInfo.jamMulaiSabtu || '10:00')
-        : parseTime(userInfo.jamMulai || '17:00');
-      const jamSelesai = isSabtu
-        ? parseTime(userInfo.jamSelesaiSabtu || '17:00')
-        : parseTime(userInfo.jamSelesai || '20:30');
+      let jamMulai = null;
+      let jamSelesai = null;
+      let isActive = true;
+
+      if (userInfo.jadwal && userInfo.jadwal[dayOfWeek]) {
+        const dayConfig = userInfo.jadwal[dayOfWeek];
+        if (dayConfig.active) {
+          jamMulai = parseTime(dayConfig.start);
+          jamSelesai = parseTime(dayConfig.end);
+        } else {
+          isActive = false;
+        }
+      } else {
+        // Fallback to legacy
+        if (isMinggu) {
+          isActive = false;
+        } else {
+          const jm = isSabtu ? (userInfo.jamMulaiSabtu || '10:00') : (userInfo.jamMulai || '17:00');
+          const js = isSabtu ? (userInfo.jamSelesaiSabtu || '17:00') : (userInfo.jamSelesai || '20:30');
+          jamMulai = parseTime(jm);
+          jamSelesai = parseTime(js);
+        }
+      }
+
       const toleransi = parseInt(userInfo.toleransi) || 0;
 
       const row = {
         nama: g.nama,
         tanggal: g.date,
         hari: HARI[dayOfWeek],
-        isMinggu,
+        isMinggu: !isActive,
         jamMasuk: g.masuk ? new Date(g.masuk) : null,
         jamKeluar: g.keluar ? new Date(g.keluar) : null,
-        jadwalMulai: isMinggu ? '-' : (isSabtu ? formatJamKerja(userInfo.jamMulaiSabtu, '10:00') : formatJamKerja(userInfo.jamMulai, '17:00')),
-        jadwalSelesai: isMinggu ? '-' : (isSabtu ? formatJamKerja(userInfo.jamSelesaiSabtu, '17:00') : formatJamKerja(userInfo.jamSelesai, '20:30')),
+        jadwalMulai: !isActive ? '-' : (jamMulai ? formatJamKerja(jamMulai.h + ':' + String(jamMulai.m).padStart(2, '0'), '') : '-'),
+        jadwalSelesai: !isActive ? '-' : (jamSelesai ? formatJamKerja(jamSelesai.h + ':' + String(jamSelesai.m).padStart(2, '0'), '') : '-'),
         durasi: null,
         durasiMinutes: 0,
-        status: isMinggu ? 'Hari Libur' : '-',
+        status: !isActive ? 'Hari Libur' : '-',
         lembur: null,
         lemburMinutes: 0,
         pulangCepat: null,
@@ -240,7 +262,7 @@ export default function Admin() {
         row.durasiMinutes = durasiMinutes;
         row.durasi = formatDuration(durasiMinutes);
 
-        if (!isMinggu) {
+        if (isActive) {
           // Late check
           if (jamMulai) {
             const masukMinutes = row.jamMasuk.getHours() * 60 + row.jamMasuk.getMinutes();
@@ -269,7 +291,7 @@ export default function Admin() {
           }
         }
       } else if (row.jamMasuk && !row.jamKeluar) {
-        row.status = isMinggu ? 'Hari Libur' : 'Belum Pulang';
+        row.status = !isActive ? 'Hari Libur' : 'Belum Pulang';
       }
 
       rows.push(row);
@@ -305,6 +327,138 @@ export default function Admin() {
     return [current, current - 1];
   }, []);
 
+  const renderWeeklySchedule = (schedule, setSchedule) => {
+    const days = [
+      { id: 1, name: 'Senin' },
+      { id: 2, name: 'Selasa' },
+      { id: 3, name: 'Rabu' },
+      { id: 4, name: 'Kamis' },
+      { id: 5, name: 'Jumat' },
+      { id: 6, name: 'Sabtu' },
+      { id: 0, name: 'Minggu' }
+    ];
+
+    const handleToggle = (dayId) => {
+      setSchedule(prev => ({
+        ...prev,
+        [dayId]: {
+          ...prev[dayId],
+          active: !prev[dayId].active
+        }
+      }));
+    };
+
+    const handleTimeChange = (dayId, field, val) => {
+      setSchedule(prev => ({
+        ...prev,
+        [dayId]: {
+          ...prev[dayId],
+          [field]: val
+        }
+      }));
+    };
+
+    return (
+      <div className="weekly-schedule-grid">
+        <div className="schedule-header">
+          <div>Hari</div>
+          <div style={{ textAlign: 'center' }}>Aktif</div>
+          <div>Jam Kerja</div>
+        </div>
+        {days.map(d => {
+          const dayConfig = schedule[d.id] || { active: false, start: '08:00', end: '17:00' };
+          return (
+            <div key={d.id} className={`schedule-row ${dayConfig.active ? 'active' : 'inactive'}`}>
+              <div className="day-name">{d.name}</div>
+              <div className="day-active-chk">
+                <input
+                  type="checkbox"
+                  checked={dayConfig.active}
+                  onChange={() => handleToggle(d.id)}
+                />
+              </div>
+              <div className="day-times">
+                <input
+                  type="time"
+                  className="form-input time-small"
+                  value={dayConfig.start}
+                  onChange={e => handleTimeChange(d.id, 'start', e.target.value)}
+                  disabled={!dayConfig.active}
+                  required={dayConfig.active}
+                />
+                <span className="time-separator">s/d</span>
+                <input
+                  type="time"
+                  className="form-input time-small"
+                  value={dayConfig.end}
+                  onChange={e => handleTimeChange(d.id, 'end', e.target.value)}
+                  disabled={!dayConfig.active}
+                  required={dayConfig.active}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderUserScheduleSummary = (userRow) => {
+    if (userRow.jadwal) {
+      const days = [
+        { id: 1, name: 'Sen' },
+        { id: 2, name: 'Sel' },
+        { id: 3, name: 'Rab' },
+        { id: 4, name: 'Kam' },
+        { id: 5, name: 'Jum' },
+        { id: 6, name: 'Sab' },
+        { id: 0, name: 'Min' }
+      ];
+
+      const activeDays = days.filter(d => userRow.jadwal[d.id] && userRow.jadwal[d.id].active);
+
+      if (activeDays.length === 0) {
+        return <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic' }}>Libur / Tidak ada jadwal</span>;
+      }
+
+      const groups = {};
+      activeDays.forEach(d => {
+        const times = `${userRow.jadwal[d.id].start} - ${userRow.jadwal[d.id].end}`;
+        if (!groups[times]) {
+          groups[times] = [];
+        }
+        groups[times].push(d.name);
+      });
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.8rem' }}>
+          {Object.entries(groups).map(([times, dayNames]) => (
+            <div key={times} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ 
+                background: 'var(--primary-50)', 
+                color: 'var(--primary)', 
+                padding: '1px 5px', 
+                borderRadius: '4px', 
+                fontWeight: 600,
+                fontSize: '0.7rem'
+              }}>
+                {dayNames.join(', ')}
+              </span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{times}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.8rem' }}>
+        <div><span style={{ fontWeight: 600 }}>Sen-Jum:</span> {formatJamKerja(userRow.jamMulai, '17:00')} - {formatJamKerja(userRow.jamSelesai, '20:30')}</div>
+        <div><span style={{ fontWeight: 600 }}>Sabtu:</span> {formatJamKerja(userRow.jamMulaiSabtu, '10:00')} - {formatJamKerja(userRow.jamSelesaiSabtu, '17:00')}</div>
+      </div>
+    );
+  };
+
   // ─── Handlers ──────────────────────────────────────────────
   const handleAddUser = async (e) => {
     e.preventDefault();
@@ -317,28 +471,26 @@ export default function Admin() {
         nama: newNama,
         nowa: newNowa,
         password: newPassword,
-        jamMulai: newJamMulai,
-        jamSelesai: newJamSelesai,
-        jamMulaiSabtu: newJamMulaiSabtu,
-        jamSelesaiSabtu: newJamSelesaiSabtu,
+        jamMulai: newJadwal[1].start,
+        jamSelesai: newJadwal[1].end,
+        jamMulaiSabtu: newJadwal[6].start,
+        jamSelesaiSabtu: newJadwal[6].end,
         toleransi: newToleransi,
         status: newStatus,
         role: newRole,
         batasAwalMasuk: newBatasAwalMasuk,
-        batasAkhirPulang: newBatasAkhirPulang
+        batasAkhirPulang: newBatasAkhirPulang,
+        jadwal: newJadwal
       });
       setNewNama('');
       setNewNowa('');
       setNewPassword('');
-      setNewJamMulai('17:00');
-      setNewJamSelesai('20:30');
-      setNewJamMulaiSabtu('10:00');
-      setNewJamSelesaiSabtu('17:00');
       setNewToleransi(15);
       setNewStatus('pegawai');
       setNewRole('user');
       setNewBatasAwalMasuk(60);
       setNewBatasAkhirPulang(240);
+      setNewJadwal(INITIAL_SCHEDULE);
       setSuccessMsg('Karyawan berhasil ditambahkan!');
       fetchData();
     } catch (err) {
@@ -350,15 +502,30 @@ export default function Admin() {
 
   const openEditModal = (u) => {
     setEditingUser(u);
-    setEditJamMulai(formatJamKerja(u.jamMulai, '17:00'));
-    setEditJamSelesai(formatJamKerja(u.jamSelesai, '20:30'));
-    setEditJamMulaiSabtu(formatJamKerja(u.jamMulaiSabtu, '10:00'));
-    setEditJamSelesaiSabtu(formatJamKerja(u.jamSelesaiSabtu, '17:00'));
     setEditToleransi(u.toleransi || 15);
     setEditStatus(u.status || 'pegawai');
     setEditRole(u.role || 'user');
     setEditBatasAwalMasuk(u.batasAwalMasuk !== undefined ? u.batasAwalMasuk : 60);
     setEditBatasAkhirPulang(u.batasAkhirPulang !== undefined ? u.batasAkhirPulang : 240);
+    
+    if (u.jadwal) {
+      setEditJadwal(u.jadwal);
+    } else {
+      const jm = formatJamKerja(u.jamMulai, '17:00');
+      const js = formatJamKerja(u.jamSelesai, '20:30');
+      const jms = formatJamKerja(u.jamMulaiSabtu, '10:00');
+      const jss = formatJamKerja(u.jamSelesaiSabtu, '17:00');
+      setEditJadwal({
+        1: { active: true, start: jm, end: js },
+        2: { active: true, start: jm, end: js },
+        3: { active: true, start: jm, end: js },
+        4: { active: true, start: jm, end: js },
+        5: { active: true, start: jm, end: js },
+        6: { active: true, start: jms, end: jss },
+        0: { active: false, start: '08:00', end: '17:00' }
+      });
+    }
+    
     setErrorMsg('');
     setSuccessMsg('');
   };
@@ -372,15 +539,16 @@ export default function Admin() {
         action: 'update_user',
         nowa: editingUser.nowa,
         nama: editingUser.nama,
-        jamMulai: editJamMulai,
-        jamSelesai: editJamSelesai,
-        jamMulaiSabtu: editJamMulaiSabtu,
-        jamSelesaiSabtu: editJamSelesaiSabtu,
+        jamMulai: editJadwal[1].start,
+        jamSelesai: editJadwal[1].end,
+        jamMulaiSabtu: editJadwal[6].start,
+        jamSelesaiSabtu: editJadwal[6].end,
         toleransi: editToleransi,
         status: editStatus,
         role: editRole,
         batasAwalMasuk: editBatasAwalMasuk,
-        batasAkhirPulang: editBatasAkhirPulang
+        batasAkhirPulang: editBatasAkhirPulang,
+        jadwal: editJadwal
       });
       setEditingUser(null);
       setSuccessMsg('Data karyawan berhasil diperbarui!');
@@ -679,14 +847,7 @@ export default function Admin() {
                   <td style={{ fontWeight: '500' }}>{item.nama}</td>
                   <td>{item.nowa}</td>
                   <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                      <span className="badge badge-neutral" style={{ fontSize: '0.75rem' }}>
-                        Sen-Jum: {formatJamKerja(item.jamMulai, '17:00')} - {formatJamKerja(item.jamSelesai, '20:30')}
-                      </span>
-                      <span className="badge badge-info" style={{ fontSize: '0.75rem' }}>
-                        Sabtu: {formatJamKerja(item.jamMulaiSabtu, '10:00')} - {formatJamKerja(item.jamSelesaiSabtu, '17:00')}
-                      </span>
-                    </div>
+                    {renderUserScheduleSummary(item)}
                   </td>
                   <td>{item.toleransi || 15} menit</td>
                   <td>
@@ -752,45 +913,9 @@ export default function Admin() {
               required
             />
           </div>
-          <div className="form-group" style={{ flex: '1 1 140px' }}>
-            <label className="form-label">Jam Mulai (Sen-Jum)</label>
-            <input
-              type="time"
-              className="form-input"
-              value={newJamMulai}
-              onChange={e => setNewJamMulai(e.target.value)}
-              required
-            />
-          </div>
-          <div className="form-group" style={{ flex: '1 1 140px' }}>
-            <label className="form-label">Jam Selesai (Sen-Jum)</label>
-            <input
-              type="time"
-              className="form-input"
-              value={newJamSelesai}
-              onChange={e => setNewJamSelesai(e.target.value)}
-              required
-            />
-          </div>
-          <div className="form-group" style={{ flex: '1 1 140px' }}>
-            <label className="form-label">Jam Mulai (Sabtu)</label>
-            <input
-              type="time"
-              className="form-input"
-              value={newJamMulaiSabtu}
-              onChange={e => setNewJamMulaiSabtu(e.target.value)}
-              required
-            />
-          </div>
-          <div className="form-group" style={{ flex: '1 1 140px' }}>
-            <label className="form-label">Jam Selesai (Sabtu)</label>
-            <input
-              type="time"
-              className="form-input"
-              value={newJamSelesaiSabtu}
-              onChange={e => setNewJamSelesaiSabtu(e.target.value)}
-              required
-            />
+          <div style={{ flex: '1 1 100%', marginTop: '1rem', marginBottom: '0.5rem' }}>
+            <p className="form-label" style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>📅 Penjadwalan Kerja Mingguan</p>
+            {renderWeeklySchedule(newJadwal, setNewJadwal)}
           </div>
           <div className="form-group" style={{ flex: '1 1 140px' }}>
             <label className="form-label">Toleransi (menit)</label>
@@ -1021,52 +1146,8 @@ export default function Admin() {
             </p>
 
             <form onSubmit={handleUpdateUser}>
-              <p className="form-label" style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>📅 Jadwal Senin - Jumat</p>
-              <div className="flex gap-4" style={{ marginBottom: '1rem' }}>
-                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <label className="form-label">Jam Mulai</label>
-                  <input
-                    type="time"
-                    className="form-input"
-                    value={editJamMulai}
-                    onChange={e => setEditJamMulai(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <label className="form-label">Jam Selesai</label>
-                  <input
-                    type="time"
-                    className="form-input"
-                    value={editJamSelesai}
-                    onChange={e => setEditJamSelesai(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-              <p className="form-label" style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>📅 Jadwal Sabtu</p>
-              <div className="flex gap-4" style={{ marginBottom: '1rem' }}>
-                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <label className="form-label">Jam Mulai</label>
-                  <input
-                    type="time"
-                    className="form-input"
-                    value={editJamMulaiSabtu}
-                    onChange={e => setEditJamMulaiSabtu(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <label className="form-label">Jam Selesai</label>
-                  <input
-                    type="time"
-                    className="form-input"
-                    value={editJamSelesaiSabtu}
-                    onChange={e => setEditJamSelesaiSabtu(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
+              <p className="form-label" style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>📅 Penjadwalan Kerja Mingguan</p>
+              {renderWeeklySchedule(editJadwal, setEditJadwal)}
               <div className="form-group">
                 <label className="form-label">Toleransi Terlambat (menit)</label>
                 <input

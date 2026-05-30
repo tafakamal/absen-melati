@@ -616,11 +616,125 @@ tr:hover td {
 .modal {
   background: var(--surface);
   border-radius: var(--radius-xl);
-  padding: 2rem;
-  max-width: 480px;
+  padding: 1.5rem 2rem 2rem 2rem;
+  max-width: 540px;
   width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   box-shadow: var(--shadow-xl);
   animation: slideUp 0.3s ease;
+}
+
+.modal form {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.modal form::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal form::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal form::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.modal form::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ===================== WEEKLY SCHEDULE ===================== */
+
+.weekly-schedule-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.schedule-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 4fr;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.schedule-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 4fr;
+  align-items: center;
+  padding: 0.4rem 0;
+  border-bottom: 1px dashed var(--border);
+  transition: all 0.2s ease;
+}
+
+.schedule-row:last-child {
+  border-bottom: none;
+}
+
+.schedule-row.inactive {
+  opacity: 0.6;
+}
+
+.schedule-row.inactive .day-name {
+  color: var(--text-muted);
+}
+
+.day-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.day-active-chk {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.day-active-chk input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--primary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.day-times {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.day-times .time-small {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  text-align: center;
+  border-radius: var(--radius-md);
+  flex: 1;
+}
+
+.time-separator {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .modal-header {
