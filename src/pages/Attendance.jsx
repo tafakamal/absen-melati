@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
-import { Camera, MapPin, LogOut, CheckCircle, RefreshCw, Clock, History, Calendar, X, ArrowLeft, Maximize2, Minimize2 } from 'lucide-react';
+import { Camera, MapPin, LogOut, CheckCircle, RefreshCw, Clock, History, Calendar, X, ArrowLeft, Maximize2, Minimize2, Bell, LogIn, BarChart3 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { callApi } from '../api';
 
@@ -106,6 +106,86 @@ export default function Attendance() {
     } catch(e) {
       console.error(e);
     }
+  };
+  
+  // Notification states
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [showNotifModal, setShowNotifModal] = useState(false);
+  const [activeToastNotif, setActiveToastNotif] = useState(null);
+
+  // Ask for browser notification permissions
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
+
+  const fetchNotifications = useCallback(async (isInitial = false) => {
+    if (!user || !user.nowa) return;
+    try {
+      const res = await callApi({
+        action: 'get_notifications',
+        nowa: user.nowa
+      });
+      if (res.notifications) {
+        setNotifications(res.notifications);
+        
+        const lastViewed = localStorage.getItem(`melati_notif_last_viewed_${user.nowa}`) || '0';
+        const lastViewedTime = new Date(lastViewed).getTime();
+        
+        let unread = 0;
+        let latestNotif = null;
+        
+        res.notifications.forEach(n => {
+          const notifTime = new Date(n.timestamp).getTime();
+          if (notifTime > lastViewedTime) {
+            unread++;
+            if (!latestNotif || notifTime > new Date(latestNotif.timestamp).getTime()) {
+              latestNotif = n;
+            }
+          }
+        });
+        
+        setUnreadNotifCount(unread);
+        
+        if (!isInitial && latestNotif && unread > 0) {
+          setActiveToastNotif(latestNotif);
+          
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            new Notification(latestNotif.title, {
+              body: latestNotif.message,
+              icon: '/logo2.png'
+            });
+          }
+          
+          setTimeout(() => {
+            setActiveToastNotif(prev => (prev && prev.timestamp === latestNotif.timestamp ? null : prev));
+          }, 6000);
+        }
+      }
+    } catch(e) {
+      console.error('Failed to fetch notifications:', e);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchNotifications(true);
+      const interval = setInterval(() => {
+        fetchNotifications(false);
+      }, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user, fetchNotifications]);
+
+  const markNotificationsAsRead = () => {
+    if (!user) return;
+    const nowStr = new Date().toISOString();
+    localStorage.setItem(`melati_notif_last_viewed_${user.nowa}`, nowStr);
+    setUnreadNotifCount(0);
   };
   
   const now = new Date();
@@ -330,7 +410,7 @@ export default function Attendance() {
             <div className="page-subtitle">Assalamu'alaikum, <strong style={{ color: 'var(--text-primary)' }}>{user?.nama}</strong></div>
           </div>
         </div>
-        <div className="page-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="page-header-right" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <button 
             className="btn btn-ghost btn-sm" 
             onClick={toggleFullscreen} 
@@ -339,13 +419,30 @@ export default function Attendance() {
           >
             {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
           </button>
+          
+          <button 
+            className="btn btn-ghost btn-sm notif-badge-container" 
+            onClick={() => {
+              markNotificationsAsRead();
+              setShowNotifModal(true);
+            }}
+            title="Notifikasi"
+            style={{ padding: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', background: 'var(--surface)' }}
+          >
+            <Bell size={16} />
+            {unreadNotifCount > 0 && <span className="notif-badge">{unreadNotifCount}</span>}
+          </button>
+
           {user?.role === 'admin' && (
-            <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin')}>
-              Dashboard
+            <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin')} title="Dashboard Admin" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <BarChart3 size={14} />
+              <span className="sm-visible">Dashboard</span>
             </button>
           )}
-          <button className="btn btn-danger btn-sm" onClick={handleLogout}>
-            <LogOut size={14} /> Keluar
+          
+          <button className="btn btn-danger btn-sm" onClick={handleLogout} title="Keluar" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <LogOut size={14} />
+            <span className="sm-visible">Keluar</span>
           </button>
         </div>
       </div>
@@ -429,7 +526,7 @@ export default function Attendance() {
             {/* Action Buttons */}
             <div className="flex gap-4 mb-4">
               <button 
-                className="btn flex-1 justify-center flex-col gap-2" 
+                className={`btn flex-1 justify-center flex-col gap-2 ${!hasAbsenMasukToday && allowedMasuk ? 'pulse-mandatory' : ''}`}
                 style={{ 
                   background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)', 
                   color: 'white', padding: '1.5rem', borderRadius: '1rem', border: 'none',
@@ -441,10 +538,10 @@ export default function Attendance() {
                 disabled={disableMasuk}
               >
                 <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
-                  <CheckCircle size={24} />
+                  <LogIn size={24} />
                 </div>
                 <span style={{ fontSize: '1.2rem', fontWeight: '700' }}>
-                  {hasAbsenMasukToday ? 'Sudah Masuk' : (!allowedMasuk ? 'Di Luar Jam' : 'Masuk')}
+                  {hasAbsenMasukToday ? 'Sudah Masuk' : (!allowedMasuk ? 'Di Luar Jam' : 'Absen Masuk (Wajib)')}
                 </span>
               </button>
               
@@ -651,6 +748,62 @@ export default function Attendance() {
               setActiveTab('riwayat');
             }}>Tutup & Lihat Riwayat</button>
           </div>
+        </div>
+      )}
+
+      {/* Notifications History Modal */}
+      {showNotifModal && (
+        <div className="modal-overlay" onClick={() => setShowNotifModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Bell size={18} style={{ color: 'var(--primary)' }} />
+                Riwayat Notifikasi
+              </div>
+              <button className="modal-close" onClick={() => setShowNotifModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="notif-list">
+              {notifications.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
+                  <Bell size={32} style={{ opacity: 0.3, marginBottom: '0.5rem' }} />
+                  <p style={{ margin: 0, fontSize: '0.9rem' }}>Belum ada notifikasi untuk Anda</p>
+                </div>
+              ) : (
+                notifications.map((n, i) => (
+                  <div key={i} className="notif-item">
+                    <div className="notif-item-header">
+                      <span className="notif-item-title">{n.title}</span>
+                      <span className="notif-item-time">
+                        {new Date(n.timestamp).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} {new Date(n.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="notif-item-msg">{n.message}</div>
+                  </div>
+                ))
+              )}
+            </div>
+            
+            <button className="btn btn-secondary w-full mt-4" onClick={() => setShowNotifModal(false)}>Tutup</button>
+          </div>
+        </div>
+      )}
+
+      {/* In-App Sliding Toast Notification Banner */}
+      {activeToastNotif && (
+        <div className="notification-toast">
+          <div style={{ background: 'var(--primary-50)', color: 'var(--primary)', padding: '0.4rem', borderRadius: '50%', display: 'flex' }}>
+            <Bell size={16} />
+          </div>
+          <div className="notification-toast-content">
+            <div className="notification-toast-title">{activeToastNotif.title}</div>
+            <div className="notification-toast-msg">{activeToastNotif.message}</div>
+          </div>
+          <button className="notification-toast-close" onClick={() => setActiveToastNotif(null)}>
+            <X size={14} />
+          </button>
         </div>
       )}
     </>

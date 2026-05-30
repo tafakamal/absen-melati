@@ -116,6 +116,10 @@ export default function Admin() {
   // UI state
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [notifRecipient, setNotifRecipient] = useState('Semua');
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifMessage, setNotifMessage] = useState('');
+  const [sendingNotif, setSendingNotif] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -632,6 +636,32 @@ export default function Admin() {
     }
   };
 
+  const handleSendNotification = async (e) => {
+    e.preventDefault();
+    if (!notifTitle.trim() || !notifMessage.trim()) {
+      setErrorMsg('Judul dan pesan notifikasi wajib diisi');
+      return;
+    }
+    setSendingNotif(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      await callApi({
+        action: 'send_notification',
+        recipient: notifRecipient,
+        title: notifTitle,
+        message: notifMessage
+      });
+      setNotifTitle('');
+      setNotifMessage('');
+      setSuccessMsg('Notifikasi berhasil dikirim ke karyawan!');
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setSendingNotif(false);
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -757,7 +787,7 @@ export default function Admin() {
     <div>
       {renderFilterBar()}
 
-      <div className="stat-cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+      <div className="stat-cards">
         <div className="stat-card">
           <div className="stat-value">{recapStats.totalHariKerja}</div>
           <div className="stat-label">Total Hari Kerja</div>
@@ -1095,6 +1125,64 @@ export default function Admin() {
           <button type="submit" className="btn btn-primary mt-2" disabled={savingSettings}>
             {savingSettings ? <div className="spinner spinner-sm"></div> : <Save size={18} />}
             Simpan Pengaturan
+          </button>
+        </div>
+      </form>
+
+      <hr style={{ margin: '2rem 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+
+      <h3 className="mb-2">
+        <Upload size={20} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }} />
+        📢 Kirim Notifikasi PWA
+      </h3>
+      <p className="form-label mb-6">
+        Kirimkan pesan/pengumuman penting kepada karyawan. Notifikasi ini akan langsung memicu push notification di layar handphone karyawan (jika diinstal).
+      </p>
+
+      <form onSubmit={handleSendNotification}>
+        <div className="flex flex-col gap-4 max-w-md">
+          <div className="form-group mb-0">
+            <label className="form-label">Penerima Notifikasi</label>
+            <select
+              className="form-input"
+              value={notifRecipient}
+              onChange={e => setNotifRecipient(e.target.value)}
+            >
+              <option value="Semua">Semua Karyawan</option>
+              {users.filter(u => u.role !== 'admin').map((u, i) => (
+                <option key={i} value={u.nowa}>{u.nama} ({u.nowa})</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group mb-0">
+            <label className="form-label">Judul Pesan</label>
+            <input
+              type="text"
+              className="form-input"
+              value={notifTitle}
+              onChange={e => setNotifTitle(e.target.value)}
+              placeholder="Contoh: Pengumuman Libur"
+              required
+            />
+          </div>
+
+          <div className="form-group mb-0">
+            <label className="form-label">Isi Pesan / Pengumuman</label>
+            <textarea
+              className="form-input"
+              rows="4"
+              value={notifMessage}
+              onChange={e => setNotifMessage(e.target.value)}
+              placeholder="Tulis pesan pengumuman Anda di sini..."
+              style={{ resize: 'vertical' }}
+              required
+            />
+          </div>
+
+          <button type="submit" className="btn btn-primary mt-2" disabled={sendingNotif}>
+            {sendingNotif ? <div className="spinner spinner-sm"></div> : <Save size={18} />}
+            Kirim Notifikasi
           </button>
         </div>
       </form>
