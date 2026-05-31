@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
-import { Camera, MapPin, LogOut, CheckCircle, RefreshCw, Clock, History, Calendar, X, ArrowLeft, Maximize2, Minimize2, Bell, LogIn, BarChart3, Plane, Wallet, CheckSquare, Users, Building2, Package, Home, Send, User } from 'lucide-react';
+import { Camera, MapPin, LogOut, CheckCircle, RefreshCw, Clock, History, Calendar, X, ArrowLeft, Maximize2, Minimize2, Bell, LogIn, BarChart3, Plane, Wallet, CheckSquare, Users, Building2, Package, Home, Send, User, ChevronRight, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { callApi } from '../api';
 
@@ -57,6 +57,7 @@ export default function Attendance() {
   const [errorMsg, setErrorMsg] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   // History states
   const [activeTab, setActiveTab] = useState('home');
@@ -1011,11 +1012,17 @@ export default function Attendance() {
             <div className="profile-tab-card">
               <div className="profile-tab-header">
                 <label htmlFor="profile-avatar-upload" className="avatar-container" style={{ cursor: 'pointer', display: 'block' }} title="Klik untuk ganti foto">
-                  <img 
-                    src={avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.nama || '')}&backgroundColor=059669,10b981,047857&fontSize=42&fontFamily=Inter`} 
-                    alt="Avatar" 
-                    className="profile-tab-avatar"
-                  />
+                  {avatarUrl ? (
+                    <img 
+                      src={avatarUrl} 
+                      alt="Avatar" 
+                      className="profile-tab-avatar"
+                    />
+                  ) : (
+                    <div className="profile-tab-avatar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)', color: 'white' }}>
+                      <User size={38} />
+                    </div>
+                  )}
                   <div className="avatar-edit-badge profile">
                     <Camera size={12} />
                   </div>
@@ -1059,6 +1066,39 @@ export default function Attendance() {
               </div>
             </div>
             
+            <div className="profile-tab-card" style={{ marginTop: '1rem', marginBottom: '1.5rem', padding: '0.5rem 1rem' }}>
+              <div 
+                className="profile-tab-info-row" 
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0' }}
+                onClick={() => setShowScheduleModal(true)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--primary)', padding: '0.5rem', borderRadius: '0.5rem' }}>
+                    <Calendar size={18} />
+                  </div>
+                  <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>Jadwal dan Jam Kerja</span>
+                </div>
+                <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+              </div>
+              
+              <div 
+                className="profile-tab-info-row" 
+                style={{ borderBottom: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0' }}
+                onClick={() => setUnderDevFeature({
+                  title: "Reset Password",
+                  message: "Fitur reset password mandiri sedang dalam pengembangan. Silakan hubungi admin untuk mereset password Anda saat ini."
+                })}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', padding: '0.5rem', borderRadius: '0.5rem' }}>
+                    <Lock size={18} />
+                  </div>
+                  <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>Reset Password</span>
+                </div>
+                <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+              </div>
+            </div>
+
             <button 
               className="btn btn-danger w-full justify-center" 
               onClick={handleLogout}
@@ -1184,107 +1224,350 @@ export default function Attendance() {
               )}
             </div>
           </div>
-        ) : (
-          <div style={{ padding: '1.25rem' }}>
-            {/* Elegant Header - page-header is completely hidden */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-              <div>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-primary)' }}>Riwayat Absen</h2>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500', marginTop: '0.2rem' }}>Daftar lengkap kehadiran kerja Anda</p>
+        ) : activeTab === 'riwayat' ? (
+          <div>
+            {/* Professional Sticky Header for Riwayat */}
+            <div style={{
+              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+              padding: '1.5rem 1.25rem 1.25rem',
+              position: 'sticky',
+              top: 0,
+              zIndex: 10
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.7)', fontWeight: '700', marginBottom: '0.3rem' }}>Log Kehadiran</div>
+                  <h2 style={{ fontSize: '1.6rem', fontWeight: '800', color: 'white', margin: 0, lineHeight: 1.1 }}>Riwayat Absen</h2>
+                  <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.75)', fontWeight: '500', marginTop: '0.3rem' }}>
+                    {filteredHistory.length} catatan &middot; {MONTHS[filterMonth]} {filterYear}
+                  </p>
+                </div>
+                <div style={{ 
+                  background: 'rgba(255,255,255,0.15)', 
+                  borderRadius: '50%', 
+                  width: '44px', 
+                  height: '44px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <History size={20} style={{ color: 'white' }} />
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <select 
-                  value={filterMonth} 
-                  onChange={e => setFilterMonth(Number(e.target.value))}
-                  style={{ padding: '0.4rem 0.6rem', borderRadius: '0.75rem', border: '1px solid var(--border)', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-primary)', background: 'white' }}
-                >
+
+              {/* Dynamic Month Pill Filter */}
+              <div style={{ overflowX: 'auto', paddingBottom: '2px' }}>
+                <div style={{ display: 'flex', gap: '0.45rem', width: 'max-content' }}>
                   {MONTHS.map((m, i) => (
-                    <option key={i} value={i}>{m}</option>
+                    <button 
+                      key={i} 
+                      onClick={() => setFilterMonth(i)}
+                      style={{
+                        padding: '0.35rem 0.9rem',
+                        borderRadius: '2rem',
+                        border: 'none',
+                        fontSize: '0.75rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: filterMonth === i ? 'white' : 'rgba(255,255,255,0.15)',
+                        color: filterMonth === i ? 'var(--primary)' : 'rgba(255,255,255,0.85)',
+                        boxShadow: filterMonth === i ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
+                        transform: filterMonth === i ? 'scale(1.05)' : 'scale(1)',
+                        flexShrink: 0
+                      }}
+                    >
+                      {m.substring(0, 3)}
+                    </button>
                   ))}
-                </select>
-                <select 
-                  value={filterYear} 
-                  onChange={e => setFilterYear(Number(e.target.value))}
-                  style={{ padding: '0.4rem 0.6rem', borderRadius: '0.75rem', border: '1px solid var(--border)', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-primary)', background: 'white' }}
-                >
-                  {yearOptions.map(y => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
+                </div>
+              </div>
+
+              {/* Year toggle pills */}
+              <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.6rem' }}>
+                {yearOptions.map(y => (
+                  <button 
+                    key={y} 
+                    onClick={() => setFilterYear(y)}
+                    style={{
+                      padding: '0.3rem 0.85rem',
+                      borderRadius: '2rem',
+                      border: 'none',
+                      fontSize: '0.75rem',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      background: filterYear === y ? 'white' : 'rgba(255,255,255,0.15)',
+                      color: filterYear === y ? 'var(--primary)' : 'rgba(255,255,255,0.85)',
+                      boxShadow: filterYear === y ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'
+                    }}
+                  >
+                    {y}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {loadingHistory ? (
-              <div className="flex justify-center py-12">
-                <div className="spinner spinner-primary"></div>
+            {/* History List */}
+            <div style={{ padding: '1.25rem' }}>
+              {loadingHistory ? (
+                <div className="flex justify-center py-12">
+                  <div className="spinner spinner-primary"></div>
+                </div>
+              ) : filteredHistory.length === 0 ? (
+                <div className="card text-center" style={{ padding: '3rem 1.5rem' }}>
+                  <Calendar size={48} style={{ margin: '0 auto 1rem', opacity: 0.3, color: 'var(--primary)' }} />
+                  <h3 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '0.25rem' }}>Tidak Ada Riwayat</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Belum ada catatan absensi untuk {MONTHS[filterMonth]} {filterYear}.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  {filteredHistory.map((item, idx) => {
+                    const d = new Date(item.timestamp);
+                    const isMasuk = item.tipe === 'Masuk';
+                    return (
+                      <div 
+                        key={idx} 
+                        style={{ 
+                          background: 'white', 
+                          borderRadius: '1.25rem', 
+                          padding: '1rem', 
+                          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+                          border: `1px solid ${isMasuk ? 'rgba(16,185,129,0.12)' : 'rgba(249,115,22,0.12)'}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          animation: 'fadeInUp 0.3s ease-out'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                          <div style={{ 
+                            width: '42px', 
+                            height: '42px', 
+                            borderRadius: '50%', 
+                            background: isMasuk ? 'rgba(16, 185, 129, 0.1)' : 'rgba(249, 115, 22, 0.1)', 
+                            color: isMasuk ? 'var(--success)' : '#f97316', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            {isMasuk ? <LogIn size={18} /> : <LogOut size={18} />}
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-primary)' }}>Absen {item.tipe}</span>
+                              {item.keterangan && (
+                                <span style={{ fontSize: '0.65rem', fontWeight: '700', color: '#f97316', background: 'rgba(249,115,22,0.08)', padding: '0.1rem 0.4rem', borderRadius: '0.4rem' }}>
+                                  {item.keterangan}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '500', marginTop: '0.2rem' }}>
+                              {d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }).replace('Minggu', 'Ahad')}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '0.5rem' }}>
+                          <div style={{ fontSize: '1.1rem', fontWeight: '800', color: isMasuk ? 'var(--success)' : '#f97316' }}>
+                            {d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '3px', marginTop: '0.15rem' }}>
+                            <MapPin size={10} style={{ color: 'var(--text-muted)' }} />
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '500' }}>
+                              {item.jarak} m
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : activeTab === 'rekap' ? (
+          <div>
+            {/* Professional Sticky Header for Rekap */}
+            <div style={{
+              background: 'linear-gradient(135deg, #0f766e 0%, #134e4a 100%)',
+              padding: '1.5rem 1.25rem 1.25rem',
+              position: 'sticky',
+              top: 0,
+              zIndex: 10
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.7)', fontWeight: '700', marginBottom: '0.3rem' }}>Ringkasan Kerja</div>
+                  <h2 style={{ fontSize: '1.6rem', fontWeight: '800', color: 'white', margin: 0, lineHeight: 1.1 }}>Rekap Jam Kerja</h2>
+                  <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.75)', fontWeight: '500', marginTop: '0.3rem' }}>
+                    {getDailyRecapsList().filter(r => new Date(r.date).getMonth() === filterMonth && new Date(r.date).getFullYear() === filterYear).length} hari &middot; {MONTHS[filterMonth]} {filterYear}
+                  </p>
+                </div>
+                <div style={{ 
+                  background: 'rgba(255,255,255,0.15)', 
+                  borderRadius: '50%', 
+                  width: '44px', 
+                  height: '44px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <BarChart3 size={20} style={{ color: 'white' }} />
+                </div>
               </div>
-            ) : filteredHistory.length === 0 ? (
-              <div className="card text-center" style={{ padding: '3rem 1.5rem' }}>
-                <Calendar size={48} style={{ margin: '0 auto 1rem', opacity: 0.3, color: 'var(--primary)' }} />
-                <h3 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '0.25rem' }}>Tidak Ada Riwayat</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Belum ada catatan absensi untuk bulan yang dipilih.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                {filteredHistory.map((item, idx) => {
-                  const d = new Date(item.timestamp);
-                  const isMasuk = item.tipe === 'Masuk';
-                  return (
-                    <div 
-                      key={idx} 
-                      style={{ 
-                        background: 'white', 
-                        borderRadius: '1.25rem', 
-                        padding: '1rem', 
-                        boxShadow: '0 4px 15px rgba(0, 0, 0, 0.02)',
-                        border: '1px solid rgba(0, 0, 0, 0.03)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        animation: 'fadeInUp 0.3s ease-out'
+
+              {/* Month Pills */}
+              <div style={{ overflowX: 'auto', paddingBottom: '2px' }}>
+                <div style={{ display: 'flex', gap: '0.45rem', width: 'max-content' }}>
+                  {MONTHS.map((m, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => setFilterMonth(i)}
+                      style={{
+                        padding: '0.35rem 0.9rem',
+                        borderRadius: '2rem',
+                        border: 'none',
+                        fontSize: '0.75rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: filterMonth === i ? 'white' : 'rgba(255,255,255,0.15)',
+                        color: filterMonth === i ? '#0f766e' : 'rgba(255,255,255,0.85)',
+                        boxShadow: filterMonth === i ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
+                        transform: filterMonth === i ? 'scale(1.05)' : 'scale(1)',
+                        flexShrink: 0
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                        <div style={{ 
-                          width: '40px', 
-                          height: '40px', 
-                          borderRadius: '50%', 
-                          background: isMasuk ? 'rgba(16, 185, 129, 0.1)' : 'rgba(249, 115, 22, 0.1)', 
-                          color: isMasuk ? 'var(--success)' : '#f97316', 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center' 
-                        }}>
-                          {isMasuk ? <LogIn size={18} /> : <LogOut size={18} />}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-primary)' }}>
-                            Absen {item.tipe}
-                          </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '500', marginTop: '0.15rem' }}>
-                            {d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }).replace('Minggu', 'Ahad')}
-                          </div>
-                        </div>
-                      </div>
+                      {m.substring(0, 3)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.6rem' }}>
+                {yearOptions.map(y => (
+                  <button 
+                    key={y} 
+                    onClick={() => setFilterYear(y)}
+                    style={{
+                      padding: '0.3rem 0.85rem',
+                      borderRadius: '2rem',
+                      border: 'none',
+                      fontSize: '0.75rem',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      background: filterYear === y ? 'white' : 'rgba(255,255,255,0.15)',
+                      color: filterYear === y ? '#0f766e' : 'rgba(255,255,255,0.85)',
+                      boxShadow: filterYear === y ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'
+                    }}
+                  >
+                    {y}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-primary)' }}>
-                          {d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', marginTop: '0.15rem' }}>
-                          <MapPin size={10} style={{ color: 'var(--text-muted)' }} />
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '500' }}>
-                            {item.jarak} m
+            {/* Recap Cards List */}
+            <div style={{ padding: '1.25rem' }}>
+              {loadingHistory ? (
+                <div className="flex justify-center py-12">
+                  <div className="spinner spinner-primary"></div>
+                </div>
+              ) : (() => {
+                const rekapFiltered = getDailyRecapsList().filter(r => 
+                  new Date(r.date).getMonth() === filterMonth && new Date(r.date).getFullYear() === filterYear
+                );
+                return rekapFiltered.length === 0 ? (
+                  <div className="card text-center" style={{ padding: '3rem 1.5rem' }}>
+                    <BarChart3 size={48} style={{ margin: '0 auto 1rem', opacity: 0.3, color: 'var(--primary)' }} />
+                    <h3 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '0.25rem' }}>Tidak Ada Rekap</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Belum ada rekap jam kerja untuk {MONTHS[filterMonth]} {filterYear}.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    {rekapFiltered.map((recap, idx) => (
+                      <div 
+                        key={idx} 
+                        style={{ 
+                          background: 'white', 
+                          borderRadius: '1.25rem', 
+                          padding: '1rem 1.25rem', 
+                          border: '1px solid var(--border)',
+                          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.75rem'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <span style={{ fontWeight: '800', fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                              {recap.hari}, {recap.date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '0.15rem', fontWeight: '500' }}>
+                              <Calendar size={11} style={{ color: 'var(--primary)' }} />
+                              Jadwal: {recap.jadwalMulai} - {recap.jadwalSelesai}
+                            </div>
+                          </div>
+                          <span style={{ 
+                            fontSize: '0.68rem', 
+                            fontWeight: '700', 
+                            padding: '0.2rem 0.55rem', 
+                            borderRadius: '0.5rem',
+                            background: recap.status === 'Tepat Waktu' ? 'rgba(16, 185, 129, 0.1)' : 
+                                        recap.status.includes('Terlambat') ? 'rgba(245, 158, 11, 0.1)' : 
+                                        recap.status === 'Belum Pulang' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(107, 114, 128, 0.1)',
+                            color: recap.status === 'Tepat Waktu' ? 'var(--success)' : 
+                                   recap.status.includes('Terlambat') ? '#d97706' : 
+                                   recap.status === 'Belum Pulang' ? '#3b82f6' : 'var(--text-muted)'
+                          }}>
+                            {recap.status}
                           </span>
                         </div>
+                        <div style={{ height: '1px', background: 'var(--border)', opacity: 0.5 }}></div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', textAlign: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: '0.63rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Masuk</div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-primary)', marginTop: '0.2rem' }}>{recap.jamMasukStr}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.63rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Keluar</div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: '800', color: recap.keterangan?.includes('tidak') ? '#f97316' : 'var(--text-primary)', marginTop: '0.2rem' }}>
+                              {recap.jamKeluarStr}
+                              {recap.keterangan && <div style={{ fontSize: '0.6rem', color: '#f97316', fontWeight: '600', marginTop: '0.1rem', lineHeight: '1.2' }}>{recap.keterangan}</div>}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.63rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Jam Kerja</div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--primary)', marginTop: '0.2rem' }}>{recap.durasi || '-'}</div>
+                          </div>
+                        </div>
+                        {(recap.lembur || recap.pulangCepat) && (
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            {recap.lembur && (
+                              <span style={{ fontSize: '0.68rem', fontWeight: '700', padding: '0.2rem 0.5rem', borderRadius: '0.5rem', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                ⚡ Lembur: {recap.lembur}
+                              </span>
+                            )}
+                            {recap.pulangCepat && (
+                              <span style={{ fontSize: '0.68rem', fontWeight: '700', padding: '0.2rem 0.5rem', borderRadius: '0.5rem', background: 'rgba(239,68,68,0.08)', color: 'var(--error)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                ⚠️ Pulang Cepat: {recap.pulangCepat}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
-        )}
+        ) : (<div></div>)}
       </div>
 
       {/* Bottom Navigation Redesign */}
@@ -1314,14 +1597,11 @@ export default function Attendance() {
         </div>
         
         <button 
-          className="home-nav-item"
-          onClick={() => setUnderDevFeature({
-            title: "Portal Klinik",
-            message: "Fitur portal internal perusahaan dan info operasional sedang dalam tahap integrasi."
-          })}
+          className={`home-nav-item ${activeTab === 'rekap' ? 'active' : ''}`}
+          onClick={() => setActiveTab('rekap')}
         >
-          <Building2 size={20} />
-          <span>Klinik</span>
+          <BarChart3 size={20} />
+          <span>Rekap</span>
         </button>
         
         <button 
@@ -1485,6 +1765,70 @@ export default function Attendance() {
             <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>{underDevFeature.title}</h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: '1.6', marginBottom: '1.5rem' }}>{underDevFeature.message}</p>
             <button className="btn btn-primary w-full" onClick={() => setUnderDevFeature(null)}>Mengerti</button>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Modal */}
+      {showScheduleModal && (
+        <div className="modal-overlay" onClick={() => setShowScheduleModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '380px', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Calendar size={20} />
+                </div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Jadwal Anda</h3>
+              </div>
+              <button onClick={() => setShowScheduleModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].map((dayName, idx) => {
+                let isActive = false;
+                let start = '';
+                let end = '';
+                if (user?.jadwal && user.jadwal[idx]) {
+                  isActive = user.jadwal[idx].active;
+                  start = user.jadwal[idx].start;
+                  end = user.jadwal[idx].end;
+                } else {
+                  if (idx !== 0) {
+                    isActive = true;
+                    start = formatJamKerja(idx === 6 ? (user?.jamMulaiSabtu || '10:00') : (user?.jamMulai || '17:00'), '17:00');
+                    end = formatJamKerja(idx === 6 ? (user?.jamSelesaiSabtu || '17:00') : (user?.jamSelesai || '20:30'), '20:30');
+                  }
+                }
+                const isToday = new Date().getDay() === idx;
+                
+                return (
+                  <div key={idx} style={{ 
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+                    padding: '0.75rem', 
+                    borderRadius: '0.75rem', 
+                    background: isToday ? 'rgba(16, 185, 129, 0.05)' : 'white',
+                    border: isToday ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--border)'
+                  }}>
+                    <span style={{ fontWeight: isToday ? '700' : '600', color: isToday ? 'var(--primary)' : 'var(--text-primary)', fontSize: '0.9rem' }}>
+                      {dayName}
+                    </span>
+                    {isActive ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>{start}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>-</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>{end}</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#f97316', background: 'rgba(249, 115, 22, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '1rem' }}>
+                        Libur
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
