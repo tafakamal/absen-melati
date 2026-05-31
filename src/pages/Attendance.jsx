@@ -1039,25 +1039,9 @@ export default function Attendance() {
               </div>
               
               <div className="profile-tab-info-row">
-                <span className="profile-tab-info-label">Nomor WhatsApp</span>
-                <span className="profile-tab-info-value">{user?.nowa}</span>
+                <span className="profile-tab-info-label">WhatsApp</span>
+                <span className="profile-tab-info-value">{user?.nowa ? user.nowa.replace(/^(?:\+62|62)/, '0') : ''}</span>
               </div>
-              
-              <div className="profile-tab-info-row">
-                <span className="profile-tab-info-label">Jadwal Kerja</span>
-                <span className="profile-tab-info-value">
-                  {(() => {
-                    const { jm, js } = getJamKerja();
-                    return `${jm} - ${js}`;
-                  })()}
-                </span>
-              </div>
-
-              <div className="profile-tab-info-row">
-                <span className="profile-tab-info-label">Toleransi</span>
-                <span className="profile-tab-info-value">{user?.toleransi || 15} Menit</span>
-              </div>
-              
               <div className="profile-tab-info-row" style={{ borderBottom: 'none' }}>
                 <span className="profile-tab-info-label">Status</span>
                 <span className="profile-tab-info-value" style={{ color: 'var(--primary)' }}>
