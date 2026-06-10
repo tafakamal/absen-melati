@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
-import { Camera, MapPin, LogOut, CheckCircle, RefreshCw, Clock, History, Calendar, X, ArrowLeft, Maximize2, Minimize2, Bell, LogIn, BarChart3, Plane, Wallet, CheckSquare, Users, Building2, Package, Home, Send, User, ChevronRight, Lock } from 'lucide-react';
+import { Camera, MapPin, LogOut, CheckCircle, RefreshCw, Clock, History, Calendar, X, ArrowLeft, Maximize2, Minimize2, Bell, LogIn, BarChart3, Plane, Wallet, CheckSquare, Users, Building2, Package, Home, Send, User, ChevronRight, Lock, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { callApi } from '../api';
 
@@ -51,6 +51,7 @@ export default function Attendance() {
   // States
   const [location, setLocation] = useState(null);
   const [distance, setDistance] = useState(null);
+  const [matchedClinic, setMatchedClinic] = useState(null);
   const [locError, setLocError] = useState('');
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -66,6 +67,14 @@ export default function Attendance() {
   const [underDevFeature, setUnderDevFeature] = useState(null);
   const [avatarUrl, setAvatarUrl] = useState('');
   const [unfinishedModalSession, setUnfinishedModalSession] = useState(null);
+
+  // Reset Password states
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
     if (user?.nowa) {
@@ -142,17 +151,18 @@ export default function Attendance() {
       const d = new Date(item.timestamp);
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       if (!groups[key]) {
-        groups[key] = { date: d, masuk: null, keluar: null, keterangan: '' };
+        groups[key] = { date: d, masuk: null, keluar: null, keterangan: '', tipe: null };
       }
       if (item.tipe === 'Masuk') {
         if (!groups[key].masuk || new Date(item.timestamp) < new Date(groups[key].masuk)) {
           groups[key].masuk = item.timestamp;
         }
-      }
-      if (item.tipe === 'Keluar') {
+      } else if (item.tipe === 'Keluar') {
         if (!groups[key].keluar || new Date(item.timestamp) > new Date(groups[key].keluar)) {
           groups[key].keluar = item.timestamp;
         }
+      } else if (item.tipe === 'Izin' || item.tipe === 'Sakit') {
+        groups[key].tipe = item.tipe;
       }
       if (item.keterangan) {
         groups[key].keterangan = item.keterangan;
@@ -197,20 +207,22 @@ export default function Attendance() {
         return dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
       };
 
+      const isDokter = user?.status === 'dokter';
+      const isIzinSakit = g.tipe === 'Izin' || g.tipe === 'Sakit';
       const row = {
         date: g.date,
         hari: HARI[dayOfWeek],
-        isOff: !isActive,
+        isOff: !isActive || isIzinSakit,
         jamMasuk: g.masuk ? new Date(g.masuk) : null,
         jamMasukStr: formatTimeOnly(g.masuk),
         jamKeluar: g.keluar ? new Date(g.keluar) : null,
         jamKeluarStr: formatTimeOnly(g.keluar),
-        jadwalMulai: !isActive ? '-' : (jamMulai ? `${String(jamMulai.h).padStart(2, '0')}:${String(jamMulai.m).padStart(2, '0')}` : '-'),
-        jadwalSelesai: !isActive ? '-' : (jamSelesai ? `${String(jamSelesai.h).padStart(2, '0')}:${String(jamSelesai.m).padStart(2, '0')}` : '-'),
-        durasi: null,
-        status: !isActive ? 'Hari Libur' : 'Tepat Waktu',
-        lembur: null,
-        pulangCepat: null,
+        jadwalMulai: (!isActive || isDokter || isIzinSakit) ? '-' : (jamMulai ? `${String(jamMulai.h).padStart(2, '0')}:${String(jamMulai.m).padStart(2, '0')}` : '-'),
+        jadwalSelesai: (!isActive || isDokter || isIzinSakit) ? '-' : (jamSelesai ? `${String(jamSelesai.h).padStart(2, '0')}:${String(jamSelesai.m).padStart(2, '0')}` : '-'),
+        durasi: (isDokter || isIzinSakit) ? '-' : null,
+        status: isIzinSakit ? g.tipe : (isDokter ? '-' : (!isActive ? 'Hari Libur' : 'Tepat Waktu')),
+        lembur: (isDokter || isIzinSakit) ? '-' : null,
+        pulangCepat: (isDokter || isIzinSakit) ? '-' : null,
         keterangan: g.keterangan || '',
         terlambat: false
       };
@@ -218,9 +230,11 @@ export default function Attendance() {
       if (row.jamMasuk && row.jamKeluar) {
         const diffMs = row.jamKeluar - row.jamMasuk;
         const durasiMinutes = Math.floor(diffMs / 60000);
-        row.durasi = formatDuration(durasiMinutes);
+        if (!isDokter) {
+          row.durasi = formatDuration(durasiMinutes);
+        }
 
-        if (isActive) {
+        if (isActive && !isDokter) {
           if (jamMulai) {
             const masukMinutes = row.jamMasuk.getHours() * 60 + row.jamMasuk.getMinutes();
             const batasMinutes = jamMulai.totalMinutes + toleransi;
@@ -235,17 +249,32 @@ export default function Attendance() {
 
           if (jamSelesai) {
             const keluarMinutes = row.jamKeluar.getHours() * 60 + row.jamKeluar.getMinutes();
+            let lemburMenit = 0;
+
             if (keluarMinutes > jamSelesai.totalMinutes) {
-              const lemburMenit = keluarMinutes - jamSelesai.totalMinutes;
+              lemburMenit += keluarMinutes - jamSelesai.totalMinutes;
+            }
+
+            const isPegawaiAtauPerawat = user?.status === 'pegawai' || user?.status === 'perawat';
+            if (isPegawaiAtauPerawat && jamMulai) {
+              const masukMinutes = row.jamMasuk.getHours() * 60 + row.jamMasuk.getMinutes();
+              if (masukMinutes < jamMulai.totalMinutes) {
+                lemburMenit += jamMulai.totalMinutes - masukMinutes;
+              }
+            }
+
+            if (lemburMenit > 0) {
               row.lembur = formatDuration(lemburMenit);
-            } else if (keluarMinutes < jamSelesai.totalMinutes) {
+            }
+
+            if (keluarMinutes < jamSelesai.totalMinutes) {
               const cepatMenit = jamSelesai.totalMinutes - keluarMinutes;
               row.pulangCepat = formatDuration(cepatMenit);
             }
           }
         }
       } else if (row.jamMasuk) {
-        row.status = 'Belum Pulang';
+        row.status = isDokter ? '-' : 'Belum Pulang';
       }
 
       rows.push(row);
@@ -312,9 +341,12 @@ export default function Attendance() {
         const [schH, schM] = jamSelesaiStr.split(':').map(Number);
         const shiftEnd = new Date(g.date);
         shiftEnd.setHours(schH || 20, schM || 30, 0, 0);
+        
+        const batasAkhir = user?.batasAkhirPulang !== undefined ? user.batasAkhirPulang : 240;
+        const shiftEndLimit = new Date(shiftEnd.getTime() + batasAkhir * 60000);
 
         const now = new Date();
-        const isPastShiftEnd = now > shiftEnd;
+        const isPastShiftEnd = now > shiftEndLimit;
         const isPastDate = (now.getDate() !== g.date.getDate()) || 
                            (now.getMonth() !== g.date.getMonth()) || 
                            (now.getFullYear() !== g.date.getFullYear());
@@ -429,7 +461,7 @@ export default function Attendance() {
           if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
             new Notification(latestNotif.title, {
               body: latestNotif.message,
-              icon: '/logo2.png'
+              icon: import.meta.env.BASE_URL + 'logo2.png'
             });
           }
           
@@ -482,11 +514,22 @@ export default function Attendance() {
       try {
         const res = await callApi({ action: 'get_settings' });
         const parseCoord = (val) => parseFloat(String(val || '0').replace('_', '').replace(',', '.'));
+        let clinics = [];
+        try {
+          if (res.settings.CLINIC_LOCATIONS) {
+            const parsed = JSON.parse(res.settings.CLINIC_LOCATIONS);
+            clinics = parsed.map(c => ({ name: c.name, lat: parseCoord(c.lat), lng: parseCoord(c.lng) }));
+          } else if (res.settings.KLINIK_LAT && res.settings.KLINIK_LNG) {
+            clinics = [{ name: 'Klinik Utama', lat: parseCoord(res.settings.KLINIK_LAT), lng: parseCoord(res.settings.KLINIK_LNG) }];
+          }
+        } catch(e) {}
+        
         setClinicConfig({
-          lat: parseCoord(res.settings.KLINIK_LAT),
-          lng: parseCoord(res.settings.KLINIK_LNG),
+          clinics: clinics,
           max_dist: parseInt(res.settings.MAX_DISTANCE || '100', 10),
-          logo: res.settings.KLINIK_LOGO || null
+          logo: res.settings.KLINIK_LOGO || null,
+          greeting_title: res.settings.GREETING_TITLE || 'MELATI DENTAL CARE',
+          greeting_text: res.settings.GREETING_TEXT || "Assalamu'alaikum,"
         });
       } catch (err) {
         setLocError('Gagal mengambil pengaturan koordinat dari server. Hubungi Admin.');
@@ -499,11 +542,17 @@ export default function Attendance() {
 
   // 2. Get user location when activeTab changes to 'absen' or clinicConfig loads
   const getLocation = useCallback(() => {
-    if (!clinicConfig) return;
+    if (!clinicConfig || !clinicConfig.clinics || clinicConfig.clinics.length === 0) {
+      if (clinicConfig && clinicConfig.clinics && clinicConfig.clinics.length === 0) {
+        setLocError('Tidak ada lokasi klinik yang dikonfigurasi. Hubungi Admin.');
+      }
+      return;
+    }
     
     setLocError('');
     setLocation(null);
     setDistance(null);
+    setMatchedClinic(null);
 
     if (!navigator.geolocation) {
       setLocError('Geolocation tidak didukung di browser ini.');
@@ -516,8 +565,32 @@ export default function Attendance() {
         const lng = position.coords.longitude;
         setLocation({ lat, lng });
         
-        const dist = getDistanceFromLatLonInM(clinicConfig.lat, clinicConfig.lng, lat, lng);
-        setDistance(dist);
+        let closestDist = Infinity;
+        let closestClinic = null;
+
+        // Filter klinik berdasarkan cabangKlinik yang diizinkan untuk user ini
+        let allowedClinics = clinicConfig.clinics;
+        if (user && user.cabangKlinik && Array.isArray(user.cabangKlinik) && user.cabangKlinik.length > 0) {
+          allowedClinics = clinicConfig.clinics.filter(c => user.cabangKlinik.includes(c.name));
+        }
+
+        if (allowedClinics.length === 0) {
+           setLocError('Anda tidak memiliki akses ke cabang klinik manapun yang tersedia.');
+           return;
+        }
+
+        for (const clinic of allowedClinics) {
+          const dist = getDistanceFromLatLonInM(clinic.lat, clinic.lng, lat, lng);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closestClinic = clinic;
+          }
+        }
+        
+        setDistance(closestDist);
+        if (closestClinic) {
+          setMatchedClinic(closestClinic);
+        }
       },
       (err) => {
         setLocError('Gagal mendapatkan lokasi. Pastikan GPS aktif dan diizinkan.');
@@ -574,7 +647,8 @@ export default function Attendance() {
         tipe: takingPhotoFor,
         jarak: distance,
         koordinat: `${location.lat},${location.lng}`,
-        photo: imageSrc
+        photo: imageSrc,
+        keterangan: matchedClinic && !isBebasLokasi ? `Lokasi: ${matchedClinic.name}` : ''
       });
       
       setSuccessMsg(`Berhasil melakukan absen ${takingPhotoFor}!`);
@@ -594,6 +668,79 @@ export default function Attendance() {
     navigate('/login');
   };
 
+  const handleOpenResetPassword = async () => {
+    setShowResetPasswordModal(true);
+    setOldPassword('');
+    setNewPassword('');
+    setShowOldPassword(false);
+    setShowNewPassword(false);
+    setErrorMsg('');
+    try {
+      const res = await callApi({ action: 'get_users' });
+      if (res.users) {
+        const freshUser = res.users.find(u => u.nowa === user.nowa);
+        if (freshUser) {
+          Object.assign(user, freshUser);
+          localStorage.setItem('melati_user', JSON.stringify(user));
+        }
+      }
+    } catch (err) {
+      console.warn('Gagal memuat ulang data user:', err);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!oldPassword || !newPassword) return;
+    
+    if (user.password && oldPassword !== user.password) {
+      setErrorMsg('Password lama salah');
+      return;
+    } else if (!user.password) {
+      setErrorMsg('Sistem sedang memverifikasi data. Mohon tunggu sebentar.');
+      try {
+        const res = await callApi({ action: 'get_users' });
+        if (res.users) {
+          const freshUser = res.users.find(u => u.nowa === user.nowa);
+          if (freshUser) {
+            Object.assign(user, freshUser);
+            localStorage.setItem('melati_user', JSON.stringify(user));
+            if (oldPassword !== freshUser.password) {
+              setErrorMsg('Password lama salah');
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        setErrorMsg('Gagal memverifikasi password lama. Mohon muat ulang halaman.');
+        return;
+      }
+    }
+    
+    setSavingPassword(true);
+    setErrorMsg('');
+    try {
+      await callApi({
+        action: 'update_user',
+        nowa: user.nowa,
+        password: newPassword
+      });
+      // Update local context password
+      user.password = newPassword;
+      setShowResetPasswordModal(false);
+      setOldPassword('');
+      setNewPassword('');
+      setUnderDevFeature({
+        title: "Berhasil",
+        message: "Password Anda berhasil diperbarui."
+      });
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
   const filteredHistory = history.filter(item => {
     const d = new Date(item.timestamp);
     return d.getMonth() === filterMonth && d.getFullYear() === filterYear;
@@ -609,12 +756,19 @@ export default function Attendance() {
     const d = new Date(item.timestamp).toLocaleDateString('id-ID');
     return d === todayStr && item.tipe === 'Keluar';
   });
+  const hasAnyAbsenToday = history.some(item => {
+    const d = new Date(item.timestamp).toLocaleDateString('id-ID');
+    return d === todayStr;
+  });
 
   const isBebasLokasi = user?.role === 'admin' || user?.role === 'user_bebas';
   const isLocationValid = isBebasLokasi || (location && distance !== null && distance <= clinicConfig?.max_dist);
 
   const getJamKerja = () => {
     const dayOfWeek = currentTime.getDay();
+    if (user?.status === 'dokter') {
+      return { jm: '00:00', js: '23:59', isActive: true };
+    }
     if (user && user.jadwal && user.jadwal[dayOfWeek]) {
       const dayConfig = user.jadwal[dayOfWeek];
       if (dayConfig.active) {
@@ -636,6 +790,9 @@ export default function Attendance() {
   };
 
   const checkTimeBounds = () => {
+    if (user?.status === 'dokter') {
+      return { allowedMasuk: true, allowedKeluar: true, isOffDay: false };
+    }
     const { jm, js, isActive } = getJamKerja();
     if (!isActive) {
       return { allowedMasuk: false, allowedKeluar: false, isOffDay: true };
@@ -661,7 +818,7 @@ export default function Attendance() {
 
   const { allowedMasuk, allowedKeluar, isOffDay } = checkTimeBounds();
 
-  const disableMasuk = !isLocationValid || hasAbsenMasukToday || !allowedMasuk || isOffDay;
+  const disableMasuk = !isLocationValid || (user?.status === 'dokter' ? hasAnyAbsenToday : hasAbsenMasukToday) || !allowedMasuk || isOffDay;
   const disablePulang = !isLocationValid || hasAbsenKeluarToday || !hasAbsenMasukToday || !allowedKeluar || isOffDay;
 
 
@@ -678,8 +835,6 @@ export default function Attendance() {
     <>
 
       <div className="main-content" style={{ paddingBottom: '90px' }}>
-        {errorMsg && !takingPhotoFor && <div className="alert alert-error mb-4" style={{ margin: '1rem 1.25rem 0' }}>{errorMsg}</div>}
-        {successMsg && !takingPhotoFor && <div className="alert alert-success mb-4" style={{ margin: '1rem 1.25rem 0' }}><CheckCircle size={18} /> {successMsg}</div>}
 
         {activeTab === 'home' ? (
           <div>
@@ -688,11 +843,17 @@ export default function Attendance() {
               <div className="home-profile-section">
                 <div className="home-profile-left">
                   <label htmlFor="home-avatar-upload" className="avatar-container" style={{ cursor: 'pointer', display: 'block' }} title="Klik untuk ganti foto">
-                    <img 
-                      src={avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.nama || '')}&backgroundColor=059669,10b981,047857&fontSize=42&fontFamily=Inter`} 
-                      alt="Avatar" 
-                      className="home-avatar"
-                    />
+                    {avatarUrl ? (
+                      <img 
+                        src={avatarUrl} 
+                        alt="Avatar" 
+                        className="home-avatar"
+                      />
+                    ) : (
+                      <div className="home-avatar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)', color: 'white' }}>
+                        <User size={22} />
+                      </div>
+                    )}
                     <div className="avatar-edit-badge">
                       <Camera size={10} />
                     </div>
@@ -705,8 +866,8 @@ export default function Attendance() {
                     />
                   </label>
                   <div>
-                    <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255, 255, 255, 0.75)', fontWeight: '700', marginBottom: '0.2rem' }}>Melati Dental Care</div>
-                    <div className="home-greeting">Assalamu'alaikum,</div>
+                    <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255, 255, 255, 0.75)', fontWeight: '700', marginBottom: '0.2rem' }}>{clinicConfig?.greeting_title || 'MELATI DENTAL CARE'}</div>
+                    <div className="home-greeting">{clinicConfig?.greeting_text || "Assalamu'alaikum,"}</div>
                     <div className="home-user-name">{user?.nama}</div>
                   </div>
                 </div>
@@ -753,25 +914,31 @@ export default function Attendance() {
                     {currentTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </div>
                   
-                  <div className="home-type-label">
-                    {hasAbsenMasukToday ? 'Presensi Pulang' : 'Presensi Masuk'}
-                  </div>
+                  {user?.status !== 'dokter' && (
+                    <div className="home-type-label">
+                      {hasAbsenMasukToday ? 'Presensi Pulang' : 'Presensi Masuk'}
+                    </div>
+                  )}
                   <div className="home-time-label">
-                    {(() => {
-                      const todayAbsenMasuk = history.find(h => {
-                        const d = new Date(h.timestamp);
-                        const today = new Date();
-                        return d.getDate() === today.getDate() &&
-                               d.getMonth() === today.getMonth() &&
-                               d.getFullYear() === today.getFullYear() &&
-                               h.tipe === 'Masuk';
-                      });
-                      if (todayAbsenMasuk) {
-                        const checkTime = new Date(todayAbsenMasuk.timestamp);
-                        return checkTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
-                      }
-                      return getJamKerja().jm;
-                    })()}
+                    {user?.status === 'dokter' ? (
+                      currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':')
+                    ) : (
+                      (() => {
+                        const todayAbsenMasuk = history.find(h => {
+                          const d = new Date(h.timestamp);
+                          const today = new Date();
+                          return d.getDate() === today.getDate() &&
+                                 d.getMonth() === today.getMonth() &&
+                                 d.getFullYear() === today.getFullYear() &&
+                                 h.tipe === 'Masuk';
+                        });
+                        if (todayAbsenMasuk) {
+                          const checkTime = new Date(todayAbsenMasuk.timestamp);
+                          return checkTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+                        }
+                        return getJamKerja().jm;
+                      })()
+                    )}
                   </div>
                 </div>
                 
@@ -967,9 +1134,9 @@ export default function Attendance() {
                       </div>
 
                       {/* Footer: Lembur & Pulang Cepat */}
-                      {(recap.lembur || recap.pulangCepat) && (
+                      {((recap.lembur && recap.lembur !== '-') || (recap.pulangCepat && recap.pulangCepat !== '-')) && (
                         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.1rem', flexWrap: 'wrap' }}>
-                          {recap.lembur && (
+                          {recap.lembur && recap.lembur !== '-' && (
                             <span style={{ 
                               fontSize: '0.68rem', 
                               fontWeight: '700', 
@@ -984,7 +1151,7 @@ export default function Attendance() {
                               ⚡ Lembur: {recap.lembur}
                             </span>
                           )}
-                          {recap.pulangCepat && (
+                          {recap.pulangCepat && recap.pulangCepat !== '-' && (
                             <span style={{ 
                               fontSize: '0.68rem', 
                               fontWeight: '700', 
@@ -1040,7 +1207,7 @@ export default function Attendance() {
               
               <div className="profile-tab-info-row">
                 <span className="profile-tab-info-label">WhatsApp</span>
-                <span className="profile-tab-info-value">{user?.nowa ? user.nowa.replace(/^(?:\+62|62)/, '0') : ''}</span>
+                <span className="profile-tab-info-value">{user?.nowa ? String(user.nowa).replace(/^(?:\+62|62)/, '0') : ''}</span>
               </div>
               <div className="profile-tab-info-row" style={{ borderBottom: 'none' }}>
                 <span className="profile-tab-info-label">Status</span>
@@ -1053,25 +1220,8 @@ export default function Attendance() {
             <div className="profile-tab-card" style={{ marginTop: '1rem', marginBottom: '1.5rem', padding: '0.5rem 1rem' }}>
               <div 
                 className="profile-tab-info-row" 
-                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0' }}
-                onClick={() => setShowScheduleModal(true)}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--primary)', padding: '0.5rem', borderRadius: '0.5rem' }}>
-                    <Calendar size={18} />
-                  </div>
-                  <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>Jadwal dan Jam Kerja</span>
-                </div>
-                <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
-              </div>
-              
-              <div 
-                className="profile-tab-info-row" 
                 style={{ borderBottom: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0' }}
-                onClick={() => setUnderDevFeature({
-                  title: "Reset Password",
-                  message: "Fitur reset password mandiri sedang dalam pengembangan. Silakan hubungi admin untuk mereset password Anda saat ini."
-                })}
+                onClick={handleOpenResetPassword}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', padding: '0.5rem', borderRadius: '0.5rem' }}>
@@ -1086,10 +1236,15 @@ export default function Attendance() {
             <button 
               className="btn btn-danger w-full justify-center" 
               onClick={handleLogout}
-              style={{ padding: '0.9rem', borderRadius: '1rem', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem', fontWeight: 'bold' }}
+              style={{ padding: '0.9rem', borderRadius: '1rem', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem', fontWeight: 'bold', marginBottom: '1.5rem' }}
             >
               <LogOut size={16} /> Keluar dari Aplikasi
             </button>
+            
+            {/* Footer Copyright */}
+            <div style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem', marginBottom: '1rem' }}>
+              &copy; {new Date().getFullYear()} <a href="https://wa.me/6285360787962" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}>@thafa_kamal</a>
+            </div>
           </div>
         ) : activeTab === 'absen' ? (
           <div style={{ padding: '0 1.25rem' }}>
@@ -1126,7 +1281,7 @@ export default function Attendance() {
                   </div>
                   <h3 style={{ color: 'var(--success)', fontSize: '1.3rem', marginBottom: '0.5rem' }}>Lokasi Valid</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1rem' }}>
-                    Anda berada dalam radius kantor ({distance}m).
+                    Anda berada dalam radius {matchedClinic ? <strong>{matchedClinic.name}</strong> : 'klinik'} ({distance}m).
                   </p>
                   <div style={{ 
                     fontSize: '0.95rem', 
@@ -1156,7 +1311,7 @@ export default function Attendance() {
                   </div>
                   <h3 style={{ color: 'var(--error)', fontSize: '1.3rem', marginBottom: '0.5rem' }}>Di Luar Jangkauan</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1rem' }}>
-                    Anda berada {distance}m dari klinik. Maksimal jarak adalah {clinicConfig?.max_dist || 100}m.
+                    Anda berada {distance}m dari {matchedClinic ? <strong>{matchedClinic.name}</strong> : 'klinik terdekat'}. Maksimal jarak adalah {clinicConfig?.max_dist || 100}m.
                   </p>
                   <button className="btn btn-secondary mt-4 mx-auto btn-sm" onClick={getLocation}><RefreshCw size={14} /> Coba Lagi</button>
                 </>
@@ -1185,7 +1340,7 @@ export default function Attendance() {
                 </span>
               </button>
               
-              {allowedKeluar && (
+              {hasAbsenMasukToday && user?.status !== 'dokter' && (
                 <button 
                   className="btn flex-1 justify-center flex-col gap-2" 
                   style={{ 
@@ -1202,7 +1357,7 @@ export default function Attendance() {
                     <LogOut size={24} />
                   </div>
                   <span style={{ fontSize: '1.2rem', fontWeight: '700' }}>
-                    {!hasAbsenMasukToday ? 'Belum Masuk' : (hasAbsenKeluarToday ? 'Sudah Pulang' : 'Pulang')}
+                    {hasAbsenKeluarToday ? 'Sudah Pulang' : (!allowedKeluar ? 'Di Luar Jam' : 'Pulang')}
                   </span>
                 </button>
               )}
@@ -1504,10 +1659,14 @@ export default function Attendance() {
                             borderRadius: '0.5rem',
                             background: recap.status === 'Tepat Waktu' ? 'rgba(16, 185, 129, 0.1)' : 
                                         recap.status.includes('Terlambat') ? 'rgba(245, 158, 11, 0.1)' : 
-                                        recap.status === 'Belum Pulang' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(107, 114, 128, 0.1)',
+                                        recap.status === 'Belum Pulang' ? 'rgba(59, 130, 246, 0.1)' : 
+                                        recap.status === 'Izin' ? 'rgba(99, 102, 241, 0.1)' :
+                                        recap.status === 'Sakit' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(107, 114, 128, 0.1)',
                             color: recap.status === 'Tepat Waktu' ? 'var(--success)' : 
                                    recap.status.includes('Terlambat') ? '#d97706' : 
-                                   recap.status === 'Belum Pulang' ? '#3b82f6' : 'var(--text-muted)'
+                                   recap.status === 'Belum Pulang' ? '#3b82f6' : 
+                                   recap.status === 'Izin' ? '#4f46e5' :
+                                   recap.status === 'Sakit' ? 'var(--error)' : 'var(--text-muted)'
                           }}>
                             {recap.status}
                           </span>
@@ -1739,6 +1898,95 @@ export default function Attendance() {
         </div>
       )}
 
+      {/* Reset Password Modal */}
+      {showResetPasswordModal && (
+        <div className="modal-overlay" onClick={() => setShowResetPasswordModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px', width: '90%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '700' }}>Reset Password</h3>
+              <button onClick={() => setShowResetPasswordModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleResetPasswordSubmit}>
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">Password Lama</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showOldPassword ? "text" : "password"}
+                    className="form-input"
+                    value={oldPassword}
+                    onChange={e => setOldPassword(e.target.value)}
+                    placeholder="Masukkan password lama Anda"
+                    style={{ paddingRight: '2.5rem' }}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOldPassword(!showOldPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: 0
+                    }}
+                  >
+                    {showOldPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label">Password Baru</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    className="form-input"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="Masukkan password baru Anda"
+                    style={{ paddingRight: '2.5rem' }}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: 0
+                    }}
+                  >
+                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+              {errorMsg && (
+                <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                  {errorMsg}
+                </div>
+              )}
+              <button type="submit" className="btn btn-primary w-full justify-center" disabled={savingPassword}>
+                {savingPassword ? 'Menyimpan...' : 'Simpan Password'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Feature Under Development Modal */}
       {underDevFeature && (
         <div className="modal-overlay" onClick={() => setUnderDevFeature(null)}>
@@ -1886,6 +2134,34 @@ export default function Attendance() {
                 {loading ? <div className="spinner spinner-sm" style={{ borderColor: 'white', margin: '0 auto' }}></div> : 'Ya, Selesaikan'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generic Error PopUp Modal */}
+      {errorMsg && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card text-center" style={{ width: '90%', maxWidth: '320px', padding: '2rem', animation: 'scaleIn 0.3s ease-out' }}>
+            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--error)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+              <AlertTriangle size={48} />
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Peringatan</h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: '1.4' }}>{errorMsg}</p>
+            <button className="btn btn-primary w-full" onClick={() => setErrorMsg('')}>Tutup</button>
+          </div>
+        </div>
+      )}
+
+      {/* Generic Success PopUp Modal (for non-attendance actions) */}
+      {successMsg && !showSuccessModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card text-center" style={{ width: '90%', maxWidth: '320px', padding: '2rem', animation: 'scaleIn 0.3s ease-out' }}>
+            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--success)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+              <CheckCircle size={48} />
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Berhasil</h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: '1.4' }}>{successMsg}</p>
+            <button className="btn btn-primary w-full" onClick={() => setSuccessMsg('')}>Tutup</button>
           </div>
         </div>
       )}
