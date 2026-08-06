@@ -369,6 +369,81 @@ export default function Attendance() {
 
   // Camera state
   const [takingPhotoFor, setTakingPhotoFor] = useState(null); // 'Masuk' | 'Keluar' | null
+  const [cameraError, setCameraError] = useState(null); // 'permission' | 'notfound' | 'inuse' | 'generic' | null
+  const [cameraLoading, setCameraLoading] = useState(true);
+  const [devices, setDevices] = useState([]);
+  const [activeDeviceId, setActiveDeviceId] = useState(null);
+  const [facingMode, setFacingMode] = useState('user'); // 'user' | 'environment'
+  const [cameraRetryKey, setCameraRetryKey] = useState(0);
+
+  const startCamera = useCallback((tipe) => {
+    setTakingPhotoFor(tipe);
+    setCameraError(null);
+    setCameraLoading(true);
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    setTakingPhotoFor(null);
+    setCameraError(null);
+    setCameraLoading(false);
+    setActiveDeviceId(null);
+    setFacingMode('user');
+  }, []);
+
+
+  const handleCameraError = useCallback((err) => {
+    console.error('Webcam error:', err);
+    setCameraLoading(false);
+    
+    const errName = err?.name || String(err);
+    if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+      setCameraError('permission');
+    } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+      setCameraError('notfound');
+    } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+      setCameraError('inuse');
+    } else {
+      setCameraError('generic');
+    }
+  }, []);
+
+  const handleCameraLoad = useCallback(() => {
+    setCameraLoading(false);
+    setCameraError(null);
+    
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+      navigator.mediaDevices.enumerateDevices()
+        .then((allDevices) => {
+          const videoDevices = allDevices.filter(d => d.kind === 'videoinput');
+          setDevices(videoDevices);
+        })
+        .catch((e) => {
+          console.warn('Failed to enumerate devices:', e);
+        });
+    }
+  }, []);
+
+  const handleSwitchCamera = useCallback(() => {
+    if (devices.length > 1) {
+      let currentIndex = -1;
+      if (activeDeviceId) {
+        currentIndex = devices.findIndex(d => d.deviceId === activeDeviceId);
+      }
+      const nextIndex = (currentIndex + 1) % devices.length;
+      setActiveDeviceId(devices[nextIndex].deviceId);
+    } else {
+      // Fallback toggling facingMode
+      setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+      setActiveDeviceId(null);
+    }
+  }, [devices, activeDeviceId]);
+
+  const handleRetryCamera = useCallback(() => {
+    setCameraError(null);
+    setCameraLoading(true);
+    setCameraRetryKey(prev => prev + 1);
+  }, []);
+
   
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -652,7 +727,7 @@ export default function Attendance() {
       });
       
       setSuccessMsg(`Berhasil melakukan absen ${takingPhotoFor}!`);
-      setTakingPhotoFor(null);
+      stopCamera();
       setShowSuccessModal(true);
       fetchHistory();
     } catch (err) {
@@ -1329,7 +1404,7 @@ export default function Attendance() {
                   boxShadow: '0 10px 25px -5px rgba(16, 185, 129, 0.4)',
                   cursor: disableMasuk ? 'not-allowed' : 'pointer'
                 }}
-                onClick={() => setTakingPhotoFor('Masuk')}
+                onClick={() => startCamera('Masuk')}
                 disabled={disableMasuk}
               >
                 <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
@@ -1350,7 +1425,7 @@ export default function Attendance() {
                     boxShadow: '0 10px 25px -5px rgba(249, 115, 22, 0.4)',
                     cursor: disablePulang ? 'not-allowed' : 'pointer'
                   }}
-                  onClick={() => setTakingPhotoFor('Keluar')}
+                  onClick={() => startCamera('Keluar')}
                   disabled={disablePulang}
                 >
                   <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
@@ -1764,7 +1839,7 @@ export default function Attendance() {
         }}>
           {/* Header */}
           <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.5)', color: 'white', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
-            <button onClick={() => setTakingPhotoFor(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={stopCamera} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <ArrowLeft size={20} />
             </button>
             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '500' }}>Foto Absen {takingPhotoFor}</h3>
@@ -1772,42 +1847,142 @@ export default function Attendance() {
           </div>
           
           {/* Webcam */}
-          <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Webcam
-              audio={false}
-              ref={webcamRef}
-              screenshotFormat="image/jpeg"
-              videoConstraints={{ facingMode: "user" }}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
+          <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111', overflow: 'hidden' }}>
+            {!cameraError && (
+              <Webcam
+                key={cameraRetryKey}
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                videoConstraints={activeDeviceId ? { deviceId: { exact: activeDeviceId } } : { facingMode: facingMode }}
+                onUserMedia={handleCameraLoad}
+                onUserMediaError={handleCameraError}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            )}
+
+            {/* Indikator Loading */}
+            {cameraLoading && !cameraError && (
+              <div style={{ position: 'absolute', inset: 0, background: '#111', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}>
+                <div className="spinner spinner-primary spinner-lg mb-4" style={{ borderColor: 'var(--primary) transparent var(--primary) transparent' }}></div>
+                <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem', fontWeight: '500' }}>Mengaktifkan kamera...</p>
+              </div>
+            )}
+
+            {/* Error UI */}
+            {cameraError && (
+              <div style={{
+                position: 'absolute', inset: 0, background: '#18181b', color: 'white',
+                padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', zIndex: 10, textAlign: 'center'
+              }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                  <AlertTriangle size={32} />
+                </div>
+                
+                <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '0.75rem', color: '#fca5a5' }}>
+                  {cameraError === 'permission' ? 'Akses Kamera Diblokir' :
+                   cameraError === 'notfound' ? 'Kamera Tidak Ditemukan' :
+                   cameraError === 'inuse' ? 'Kamera Sedang Digunakan' : 'Gagal Membuka Kamera'}
+                </h3>
+                
+                <p style={{ fontSize: '0.88rem', color: '#d4d4d8', lineHeight: '1.6', maxWidth: '380px', marginBottom: '1.75rem' }}>
+                  {cameraError === 'permission' ? (
+                    <>
+                      Izin kamera diblokir oleh browser. Aplikasi memerlukan akses kamera untuk mengambil foto absensi.
+                      <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#27272a', borderRadius: '0.75rem', fontSize: '0.8rem', textAlign: 'left', border: '1px solid #3f3f46' }}>
+                        <strong style={{ color: '#fb7185' }}>Cara Mengaktifkan:</strong>
+                        <ul style={{ paddingLeft: '1.2rem', marginTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.3rem', listStyleType: 'disc' }}>
+                          <li><strong>Android/Chrome:</strong> Klik ikon gembok di sebelah URL web ➔ Izin ➔ Aktifkan Kamera.</li>
+                          <li><strong>iOS/Safari:</strong> Klik ikon 'aA' di bilah alamat ➔ Pengaturan Situs Web ➔ Izinkan Kamera.</li>
+                          <li><strong>Desktop:</strong> Klik ikon gembok/kamera di bilah URL ➔ Atur izin kamera menjadi "Izinkan".</li>
+                        </ul>
+                      </div>
+                    </>
+                  ) : cameraError === 'notfound' ? (
+                    'Tidak ditemukan perangkat kamera yang terpasang pada perangkat Anda. Hubungi tim teknis jika ini adalah kesalahan.'
+                  ) : cameraError === 'inuse' ? (
+                    'Kamera saat ini sedang digunakan oleh aplikasi lain atau tab browser lain. Harap tutup semua aplikasi kamera atau tab lain dan coba lagi.'
+                  ) : (
+                    'Terjadi kesalahan saat mencoba mengakses kamera Anda. Silakan muat ulang halaman atau coba lagi.'
+                  )}
+                </p>
+                
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button 
+                    onClick={stopCamera} 
+                    className="btn btn-secondary btn-sm"
+                    style={{ background: '#27272a', color: 'white', border: 'none', padding: '0.5rem 1.25rem', borderRadius: '0.5rem', cursor: 'pointer' }}
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    onClick={handleRetryCamera} 
+                    className="btn btn-primary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '0.5rem 1.25rem', borderRadius: '0.5rem', cursor: 'pointer' }}
+                  >
+                    <RefreshCw size={14} /> Coba Lagi
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* General API error overlay */}
             {errorMsg && (
-              <div style={{ position: 'absolute', top: '80px', left: '1rem', right: '1rem', background: 'rgba(239, 68, 68, 0.9)', color: 'white', padding: '1rem', borderRadius: '0.5rem', textAlign: 'center' }}>
-                {errorMsg}
+              <div style={{ position: 'absolute', top: '80px', left: '1rem', right: '1rem', background: 'rgba(239, 68, 68, 0.95)', color: 'white', padding: '1rem', borderRadius: '0.5rem', textAlign: 'center', zIndex: 20, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>Gagal Mengirim Absensi:</div>
+                <div style={{ fontSize: '0.9rem' }}>{errorMsg}</div>
+                <button onClick={() => setErrorMsg('')} style={{ background: 'white', color: 'var(--error)', border: 'none', padding: '0.25rem 0.75rem', borderRadius: '0.25rem', marginTop: '0.5rem', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}>Tutup</button>
               </div>
             )}
           </div>
           
           {/* Footer controls */}
-          <div style={{ padding: '2rem', display: 'flex', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+          <div style={{ padding: '1.5rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,0.7)', position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 15 }}>
+            {/* Left side: Spacer */}
+            <div style={{ width: '44px' }}></div>
+            
+            {/* Center: Capture Button */}
             <button 
               onClick={captureAndSubmit}
-              disabled={loading}
+              disabled={loading || cameraLoading || cameraError}
               style={{ 
                 width: '76px', height: '76px', borderRadius: '50%', 
                 background: 'white', border: '4px solid rgba(255,255,255,0.5)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: loading ? 'not-allowed' : 'pointer',
+                cursor: (loading || cameraLoading || cameraError) ? 'not-allowed' : 'pointer',
                 boxShadow: '0 0 20px rgba(0,0,0,0.5)',
-                transition: 'transform 0.1s',
-                transform: loading ? 'scale(0.95)' : 'scale(1)'
+                transition: 'all 0.1s',
+                transform: loading ? 'scale(0.95)' : 'scale(1)',
+                opacity: (cameraLoading || cameraError) ? 0.3 : 1
               }}
             >
               {loading ? (
-                <div className="spinner spinner-primary"></div>
+                <div className="spinner spinner-primary" style={{ borderColor: 'var(--primary) transparent var(--primary) transparent' }}></div>
               ) : (
-                <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '2px solid black' }}></div>
+                <div style={{ width: '56px', height: '56px', borderRadius: '50%', border: '2px solid black', background: 'white' }}></div>
               )}
             </button>
+            
+            {/* Right side: Switch Camera Button */}
+            {!cameraError ? (
+              <button 
+                onClick={handleSwitchCamera}
+                disabled={loading || cameraLoading}
+                style={{ 
+                  background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', 
+                  width: '44px', height: '44px', borderRadius: '50%', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: (loading || cameraLoading) ? 'not-allowed' : 'pointer',
+                  opacity: (loading || cameraLoading) ? 0.5 : 1
+                }}
+                title="Ganti Kamera"
+              >
+                <RefreshCw size={20} />
+              </button>
+            ) : (
+              <div style={{ width: '44px' }}></div>
+            )}
           </div>
         </div>
       )}
